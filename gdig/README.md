@@ -4,22 +4,25 @@
 
 ## Features
 
-- **Parallel Processing**: GNU Parallel을 사용한 동시 DNS 쿼리
+- **Parallel Processing**: xargs를 사용한 동시 DNS 쿼리 (외부 의존성 최소화)
 - **Global Coverage**: 20개국 이상의 DNS 서버 조회
-- **Local DNS Check**: Cloudflare, Google, OpenDNS, 국내 ISP DNS 서버 포함
+- **Local DNS Check**: Cloudflare, Google, 국내 ISP(SKT/KT/LG) DNS 서버 포함
 - **Caching**: 24시간 DNS 서버 목록 캐시
-- **Dynamic Table Output**: 터미널 너비에 맞게 자동 조정
+- **Dynamic Table Output**: 터미널 너비에 맞게 자동 조정되는 컬럼
 - **Country Filter**: 국가 코드로 결과 필터링
+- **Color Output**: 결과 상태별 색상 구분 (성공/실패/빈 응답)
 
 ## Requirements
 
 ```bash
 # macOS
-brew install curl jq bind parallel
+brew install curl jq bind
 
 # Ubuntu/Debian
-sudo apt install curl jq dnsutils parallel
+sudo apt install curl jq dnsutils
 ```
+
+> **Note**: `xargs`, `fold`는 대부분의 시스템에 기본 포함되어 있습니다.
 
 ## Installation
 
@@ -91,25 +94,32 @@ AU, BR, CA, CN, DE, ES, FR, GB, IN, KR, MX, MY, NL, PK, RU, SG, TH, TR, US, ZA
 ## Sample Output
 
 ```
-Global DNS Checker - www.example.com (A)
-
-  Query:   A record for www.example.com
-  Filter:  Country = US
-  Source:  whatsmydns.net API
+Global DNS Checker: www.example.com (A)
+Region Filter: US
 
 +----------------------------------+------------------+--------------------------------------------------+
 | DNS Server                       | Provider         | Response                                         |
 +----------------------------------+------------------+--------------------------------------------------+
-| [US] Ashburn VA, United States   | NeuStar          | 93.184.216.34                                    |
-| [US] Boston MA, United States    | Speakeasy        | 93.184.216.34                                    |
+| [US] Ashburn VA                  | NeuStar          | 93.184.216.34                                    |
++----------------------------------+------------------+--------------------------------------------------+
+| [US] Boston MA                   | Speakeasy        | 93.184.216.34                                    |
++----------------------------------+------------------+--------------------------------------------------+
+| Local Lookup (Client: x.x.x.x (South Korea))                                                     |
++----------------------------------+------------------+--------------------------------------------------+
+| 1.1.1.1                          | Cloudflare-1     | 93.184.216.34                                    |
 +----------------------------------+------------------+--------------------------------------------------+
 
-Summary: 5 servers queried | 5 successful | 1 unique responses
-
-DNS check completed successfully
+Summary: 5 queried | 5 success | 1 unique IPs
+Done.
 ```
 
 ## Changelog
+
+### v1.1.0 (2026-01-07)
+- GNU Parallel 의존성 제거, xargs -P 사용으로 간소화
+- 코드 구조 리팩토링 및 최적화
+- 결과 상태별 색상 출력 개선 (성공/실패/빈 응답)
+- 로컬 DNS 서버 목록 업데이트 (OpenDNS 제거, ISP별 보조 DNS 추가)
 
 ### v1.0.0 (2026-01-05)
 - 초기 릴리스
