@@ -8,6 +8,7 @@
 |--------|----------|-------------|---------|
 | [gdig](./gdig/) | `DNS` | 전 세계 DNS 서버에서 도메인 레코드 조회 | v1.0.0 |
 | [clean-note](./clean-note/) | `Obsidian` | AI 복사 텍스트 정리 (불필요한 숫자, 태그 제거) | v1.1.0 |
+| [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.0.0 |
 
 ## Quick Start
 
@@ -19,6 +20,7 @@ cd scripts
 # 스크립트 실행
 ./gdig/gdig.sh a example.com
 ./clean-note/clean-note.sh "노트.md" --dry-run
+python ./urlsigning/urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mykey
 ```
 
 ## gdig - Global DNS Checker
@@ -54,6 +56,23 @@ Gemini/ChatGPT에서 복사한 텍스트의 불필요한 요소를 제거합니�
 **의존성:** `sed`, `awk` (기본 포함)
 
 → [상세 문서](./clean-note/README.md)
+
+## urlsigning - CDN URL Signing Tool
+
+CDN URL 서명을 생성합니다. 다양한 벤더의 URL 인증 방식을 지원합니다.
+
+```bash
+python ./urlsigning/urlsigning.py -m <mode> -r <host> -p <path> -k <key>
+
+# 예시
+python ./urlsigning/urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mykey
+python ./urlsigning/urlsigning.py -m E -r cdn.example.com -p /video.mp4 -k mykey --uid "SMARTTV-123"
+python ./urlsigning/urlsigning.py -m UTV -r cdn.example.com -p /video.mp4 -k mykey --hex-time
+```
+
+**의존성:** Python 3.6+
+
+→ [상세 문서](./urlsigning/README.md)
 
 ## License
 

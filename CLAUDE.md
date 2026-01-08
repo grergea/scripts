@@ -21,9 +21,13 @@ scripts-repo/
 │   ├── README.md       # 상세 문서
 │   └── gdig.sh         # 스크립트
 │
-└── clean-note/         # 노트 정리
+├── clean-note/         # 노트 정리
+│   ├── README.md       # 상세 문서
+│   └── clean-note.sh   # 스크립트
+│
+└── urlsigning/         # CDN URL 서명
     ├── README.md       # 상세 문서
-    └── clean-note.sh   # 스크립트
+    └── urlsigning.py   # 스크립트
 ```
 
 ## 스크립트 목록
@@ -32,6 +36,7 @@ scripts-repo/
 |----------|----------|------|--------|
 | `gdig/gdig.sh` | DNS | 전 세계 DNS 서버에서 도메인 레코드 조회 | curl, jq, dig, parallel |
 | `clean-note/clean-note.sh` | Obsidian | AI 복사 텍스트 정리 | sed, awk |
+| `urlsigning/urlsigning.py` | CDN | CDN URL 서명 생성 | Python 3.6+ |
 
 ## 연관 Obsidian 노트
 
