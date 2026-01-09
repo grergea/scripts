@@ -9,6 +9,7 @@
 | [gdig](./gdig/) | `DNS` | 전 세계 DNS 서버에서 도메인 레코드 조회 | v1.0.0 |
 | [clean-note](./clean-note/) | `Obsidian` | AI 복사 텍스트 정리 (불필요한 숫자, 태그 제거) | v1.1.0 |
 | [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.0.0 |
+| [pcontents](./pcontents/) | `CDN` | 병렬 CDN 노드 콘텐츠 일관성 검증 | v1.0.0 |
 
 ## Quick Start
 
@@ -21,6 +22,7 @@ cd scripts
 ./gdig/gdig.sh a example.com
 ./clean-note/clean-note.sh "노트.md" --dry-run
 python ./urlsigning/urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mykey
+./pcontents/pcontents.sh -o https://www.example.com/image.jpg
 ```
 
 ## gdig - Global DNS Checker
@@ -73,6 +75,23 @@ python ./urlsigning/urlsigning.py -m UTV -r cdn.example.com -p /video.mp4 -k myk
 **의존성:** Python 3.6+
 
 → [상세 문서](./urlsigning/README.md)
+
+## pcontents - Parallel Contents Checker
+
+여러 CDN 노드에 병렬로 요청을 보내 콘텐츠 일관성을 검증합니다.
+
+```bash
+./pcontents/pcontents.sh [-o] [-l nodes] [-H header] [-P jobs] <URL>
+
+# 예시
+./pcontents/pcontents.sh -o https://www.example.com/image.jpg
+./pcontents/pcontents.sh -l "1.1.1.1, 8.8.8.8" https://www.example.com/
+./pcontents/pcontents.sh -H "Host: assets.example.com" -P 5 -l "1.1.1.1" https://www.example.com/
+```
+
+**의존성:** `curl`, `parallel`, `md5sum`, `column`
+
+→ [상세 문서](./pcontents/README.md)
 
 ## License
 
