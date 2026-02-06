@@ -115,6 +115,11 @@ Done.
 
 ## Changelog
 
+### v1.2.0 (2026-02-06)
+- Cloudflare 우회 수정: whatsmydns.net API 호출에 브라우저 헤더 추가
+- `/api/servers` 및 `/api/details` 엔드포인트에 User-Agent, Accept, Referer 헤더 적용
+- Cloudflare 보호로 인한 HTML challenge 페이지 대신 정상 JSON 응답 보장
+
 ### v1.1.0 (2026-01-07)
 - GNU Parallel 의존성 제거, xargs -P 사용으로 간소화
 - 코드 구조 리팩토링 및 최적화
