@@ -73,12 +73,11 @@ class LinkHealthChecker:
         self.section_errors: List[WikiLink] = []
 
     def scan_vault(self):
-        """볼트의 모든 마크다운 파일 스캔"""
+        """볼트의 모든 마크다운 파일 스캔 (항상 전체 볼트에서 파일 인덱스 구축)"""
         print(f"{Colors.OKBLUE}📂 볼트 스캔 중...{Colors.ENDC}")
 
-        search_path = self.vault_path / self.scope if self.scope else self.vault_path
-
-        for md_file in search_path.rglob("*.md"):
+        # 파일 인덱스는 항상 전체 볼트에서 구축
+        for md_file in self.vault_path.rglob("*.md"):
             # 제외 폴더 확인
             if any(excluded in str(md_file) for excluded in self.excluded_dirs):
                 continue
@@ -98,18 +97,24 @@ class LinkHealthChecker:
         print(f"{Colors.OKGREEN}✅ {len(self.all_files)}개 파일 발견{Colors.ENDC}")
 
     def extract_links(self):
-        """모든 파일에서 위키링크 추출"""
+        """파일에서 위키링크 추출 (scope 지정 시 해당 폴더만)"""
         print(f"{Colors.OKBLUE}🔗 위키링크 추출 중...{Colors.ENDC}")
 
         # 위키링크 패턴 (코드 블록 제외)
         link_pattern = re.compile(r'\[\[([^\]]+)\]\]')
         code_block_pattern = re.compile(r'```[\s\S]*?```|`[^`]+`')
 
+        # scope 지정 시 해당 폴더의 파일만 처리
+        scope_path = self.vault_path / self.scope if self.scope else None
+
         for filename, file_path in self.all_files.items():
             # 리스트인 경우 모두 처리
             paths = [file_path] if not isinstance(file_path, list) else file_path
 
             for path in paths:
+                # scope 필터링
+                if scope_path and not str(path).startswith(str(scope_path)):
+                    continue
                 try:
                     with open(path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
