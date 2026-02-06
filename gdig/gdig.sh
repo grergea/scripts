@@ -8,6 +8,11 @@ RESULT_FILE="${CACHE_DIR}/results_$$.tmp"
 CACHE_EXPIRY=86400  # 24 hours
 CURL_TIMEOUT=10
 CURL_RETRY=2
+CURL_HEADERS=(
+  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+  -H 'Accept: application/json'
+  -H 'Referer: https://www.whatsmydns.net/'
+)
 
 # Color codes
 RED='\033[0;31m'
@@ -158,13 +163,18 @@ function dns_worker() {
   local entry="$1"
   local type="$2"
   local domain="$3"
+  local headers=(
+    -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    -H 'Accept: application/json'
+    -H 'Referer: https://www.whatsmydns.net/'
+  )
 
   IFS='|' read -r id country location provider <<< "$entry"
   local server_info="[${country}] ${location}"
   local url="https://www.whatsmydns.net/api/details?server=$id&type=$type&query=$domain"
-  
+
   local result
-  result=$(curl --keepalive-time 1 --max-time 10 --retry 2 -s "$url" -H 'x-requested-with: XMLHttpRequest')
+  result=$(curl --keepalive-time 1 --max-time 10 --retry 2 -s "${headers[@]}" -H 'x-requested-with: XMLHttpRequest' "$url")
 
   if [[ -n "$result" ]] && echo "$result" | jq -e . >/dev/null 2>&1; then
     local responses
@@ -228,7 +238,7 @@ if [ -f "$CACHE_FILE" ]; then
 fi
 
 if [ -z "$RAW_DATA" ] || ! echo "$RAW_DATA" | jq -e . >/dev/null 2>&1; then
-    RAW_DATA=$(curl -s --max-time 10 https://www.whatsmydns.net/api/servers)
+    RAW_DATA=$(curl -s --max-time 10 "${CURL_HEADERS[@]}" https://www.whatsmydns.net/api/servers)
     echo "$RAW_DATA" | jq -e . >/dev/null 2>&1 && echo "$RAW_DATA" > "$CACHE_FILE"
 fi
 
