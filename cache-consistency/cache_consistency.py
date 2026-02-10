@@ -35,6 +35,7 @@ class CacheConsistencyChecker:
         self.output = args.output
         self.timeout = args.timeout
         self.md5_check = args.md5
+        self.verbose = args.verbose
 
         # S3 클라이언트 초기화
         try:
@@ -127,39 +128,94 @@ class CacheConsistencyChecker:
         except requests.RequestException as e:
             return f"ERROR_{str(e)[:20]}"
 
+    def fetch_content_and_headers(self, url: str, host: Optional[str] = None) -> Dict:
+        """HTTP GET 요청으로 헤더 정보와 MD5 해시를 동시에 수집합니다."""
+        try:
+            headers = {}
+            if host:
+                headers['Host'] = host
+
+            response = requests.get(url, headers=headers, timeout=self.timeout, stream=True)
+
+            # 헤더 정보 추출
+            result = {
+                'status': response.status_code,
+                'content_length': response.headers.get('Content-Length', 'N/A'),
+                'last_modified': response.headers.get('Last-Modified', 'N/A'),
+                'etag': response.headers.get('ETag', 'N/A').strip('"'),
+                'md5': None
+            }
+
+            # MD5 계산 (200 응답인 경우만)
+            if response.status_code == 200:
+                md5_hash = hashlib.md5()
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        md5_hash.update(chunk)
+                result['md5'] = md5_hash.hexdigest()
+            else:
+                result['md5'] = f"ERROR_{response.status_code}"
+
+            return result
+
+        except requests.RequestException as e:
+            return {
+                'status': 'ERROR',
+                'error': str(e),
+                'content_length': 'N/A',
+                'last_modified': 'N/A',
+                'etag': 'N/A',
+                'md5': f"ERROR_{str(e)[:20]}"
+            }
+
     def check_object(self, object_key: str) -> Dict:
         """단일 객체의 오리진과 CDN 정합성을 검사합니다."""
         # URL 구성
         origin_url = urljoin(self.origin + '/', object_key)
         cdn_url = urljoin(self.cdn + '/', object_key)
 
-        # 헤더 정보 수집
-        origin_meta = self.fetch_headers(origin_url, self.origin_host)
-        cdn_meta = self.fetch_headers(cdn_url)
-
-        result = {
-            'file': object_key,
-            'origin_cl': origin_meta['content_length'],
-            'cdn_cl': cdn_meta['content_length'],
-            'origin_lm': origin_meta['last_modified'],
-            'cdn_lm': cdn_meta['last_modified'],
-            'origin_status': origin_meta['status'],
-            'cdn_status': cdn_meta['status']
-        }
-
-        # MD5 체크가 활성화된 경우
+        # MD5 체크 모드: GET 요청으로 헤더와 MD5를 동시에 수집
         if self.md5_check:
+            origin_meta = self.fetch_content_and_headers(origin_url, self.origin_host)
+            cdn_meta = self.fetch_content_and_headers(cdn_url)
+
+            result = {
+                'file': object_key,
+                'origin_cl': origin_meta['content_length'],
+                'cdn_cl': cdn_meta['content_length'],
+                'origin_lm': origin_meta['last_modified'],
+                'cdn_lm': cdn_meta['last_modified'],
+                'origin_status': origin_meta['status'],
+                'cdn_status': cdn_meta['status']
+            }
+
+            # MD5 결과 추가
+            origin_md5 = origin_meta['md5']
+            cdn_md5 = cdn_meta['md5']
+            result['origin_md5'] = origin_md5[:16] + '...' if len(origin_md5) > 16 else origin_md5
+            result['cdn_md5'] = cdn_md5[:16] + '...' if len(cdn_md5) > 16 else cdn_md5
+
+            # 상태 판단
             if origin_meta['status'] == 200 and cdn_meta['status'] == 200:
-                origin_md5 = self.fetch_md5(origin_url, self.origin_host)
-                cdn_md5 = self.fetch_md5(cdn_url)
-                result['origin_md5'] = origin_md5[:16] + '...' if len(origin_md5) > 16 else origin_md5
-                result['cdn_md5'] = cdn_md5[:16] + '...' if len(cdn_md5) > 16 else cdn_md5
                 result['status'] = 'MATCH' if origin_md5 == cdn_md5 else 'MISMATCH'
             else:
-                result['origin_md5'] = 'N/A'
-                result['cdn_md5'] = 'N/A'
                 result['status'] = 'ERROR'
+
+        # 헤더만 체크 모드: HEAD 요청으로 헤더만 수집
         else:
+            origin_meta = self.fetch_headers(origin_url, self.origin_host)
+            cdn_meta = self.fetch_headers(cdn_url)
+
+            result = {
+                'file': object_key,
+                'origin_cl': origin_meta['content_length'],
+                'cdn_cl': cdn_meta['content_length'],
+                'origin_lm': origin_meta['last_modified'],
+                'cdn_lm': cdn_meta['last_modified'],
+                'origin_status': origin_meta['status'],
+                'cdn_status': cdn_meta['status']
+            }
+
             # 헤더만 비교
             if origin_meta['status'] == 200 and cdn_meta['status'] == 200:
                 if (origin_meta['content_length'] == cdn_meta['content_length'] and
@@ -181,9 +237,13 @@ class CacheConsistencyChecker:
             return
 
         print(f"[INFO] 정합성 검사 진행중... ({self.workers} workers)")
+        if not self.verbose:
+            print("[INFO] 진행 상황 출력을 원하시면 --verbose 옵션을 사용하세요.")
         print()
 
         results = []
+        total = len(objects)
+        completed = 0
 
         # 병렬 처리
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -192,6 +252,25 @@ class CacheConsistencyChecker:
             for future in as_completed(futures):
                 result = future.result()
                 results.append(result)
+                completed += 1
+
+                # 진행 상황 출력 (verbose 모드)
+                if self.verbose:
+                    progress_pct = (completed / total) * 100
+
+                    # 전체 상태 아이콘
+                    status_icon = {
+                        'MATCH': f"{GREEN}✓{RESET}",
+                        'MISMATCH': f"{RED}✗{RESET}",
+                        'ERROR': f"{YELLOW}!{RESET}"
+                    }.get(result['status'], '?')
+
+                    # 오리진/CDN 개별 상태 표시
+                    origin_status = f"{GREEN}O:✓{RESET}" if result.get('origin_status') == 200 else f"{RED}O:✗{RESET}"
+                    cdn_status = f"{GREEN}C:✓{RESET}" if result.get('cdn_status') == 200 else f"{RED}C:✗{RESET}"
+
+                    file_display = result['file'][-35:] if len(result['file']) > 35 else result['file']
+                    print(f"[{completed:>4}/{total}] ({progress_pct:>5.1f}%) {status_icon} [{origin_status} {cdn_status}] {file_display}")
 
         # 결과 출력
         self.print_results(results)
@@ -202,6 +281,12 @@ class CacheConsistencyChecker:
 
     def print_results(self, results: List[Dict]):
         """결과를 테이블 형태로 출력합니다."""
+        # verbose 모드에서는 결과 테이블 전에 줄바꿈 추가
+        if self.verbose:
+            print()
+            print("=" * 80)
+            print()
+
         # 헤더
         if self.md5_check:
             header = f"{'FILE':<40} | {'ORIGIN_CL':<10} | {'CDN_CL':<10} | {'ORIGIN_LM':<20} | {'CDN_LM':<20} | {'ORIGIN_MD5':<18} | {'CDN_MD5':<18} | STATUS"
@@ -284,6 +369,7 @@ def main():
     parser.add_argument('--output', help='결과 CSV 파일 경로 (선택)')
     parser.add_argument('--timeout', type=int, default=10, help='HTTP 요청 타임아웃 초 (기본값: 10)')
     parser.add_argument('--md5', action='store_true', help='콘텐츠 다운로드 후 MD5 해시 비교 활성화 (기본: 헤더만 비교)')
+    parser.add_argument('--verbose', '-v', action='store_true', help='진행 상황을 실시간으로 출력')
 
     args = parser.parse_args()
 
