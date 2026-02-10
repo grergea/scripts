@@ -19,6 +19,8 @@ pip install -r requirements.txt
 
 ### 2. 실행
 
+#### 기본 실행 (헤더 비교)
+
 ```bash
 # 가상 환경 활성화
 source /Users/shlee/leesh/python_venv/cache-consistency/bin/activate
@@ -33,6 +35,34 @@ python cache_consistency.py \
   --origin-host "oem-nsumjp.map-care.com" \
   --cdn "https://oem-nsumjp.map-care.com"
 ```
+
+#### 진행 상황 출력 (권장)
+
+```bash
+python cache_consistency.py \
+  --bucket oem-nsumjp-act \
+  --endpoint https://s3-jp-east-1.wcsapi.com \
+  --region jp-east-1 \
+  --prefix "update_data/sums_data/ccNC/ME!AE/19022/" \
+  --origin "http://oem-nsumjp-act.wcscdn55.v1.wcsapi.com" \
+  --origin-host "oem-nsumjp.map-care.com" \
+  --cdn "https://oem-nsumjp.map-care.com" \
+  --verbose
+```
+
+**출력 예시:**
+```
+[INFO] 1483개 객체 발견
+[INFO] 정합성 검사 진행중... (5 workers)
+
+[   1/1483] (  0.1%) ✓ [O:✓ C:✓] file1.txt
+[   2/1483] (  0.1%) ✓ [O:✓ C:✓] file2.txt
+[   3/1483] (  0.2%) ✗ [O:✓ C:✗] file3.txt
+```
+
+- `O:✓` = 오리진 응답 성공
+- `C:✓` = CDN 응답 성공
+- `✓/✗/!` = 일치/불일치/오류
 
 **Tip:** 자주 사용한다면 shell alias를 추가하세요:
 
@@ -53,11 +83,24 @@ export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
 ## 주요 옵션
 
-- `--md5`: 콘텐츠 MD5 해시 비교 (정밀 검증)
-- `--output result.csv`: CSV 결과 저장
-- `--workers 10`: 병렬 처리 워커 수 증가
+| 옵션 | 설명 | 비고 |
+|------|------|------|
+| `--verbose`, `-v` | 진행 상황 실시간 출력 | 권장 |
+| `--md5` | 콘텐츠 MD5 해시 비교 | 정밀 검증 (GET 요청만 사용) |
+| `--output result.csv` | CSV 결과 저장 | 엑셀로 분석 가능 |
+| `--workers 10` | 병렬 처리 워커 수 | 기본값: 5 |
+| `--timeout 30` | HTTP 요청 타임아웃 (초) | 기본값: 10 |
+
+### 성능 정보
+
+| 모드 | 요청 방식 | 요청 횟수 (1,483개 파일 기준) |
+|------|----------|------------------------------|
+| 기본 모드 | HEAD × 2 | 2,966회 |
+| MD5 모드 | GET × 2 | 2,966회 (최적화됨) |
+
+**MD5 모드 최적화:** GET 요청으로 헤더와 콘텐츠를 동시 수집하여 이중 요청 없음
 
 ## 상세 문서
 
 전체 문서는 Obsidian 노트 참조:
-`/Users/shlee/leesh/mynotes/03_Resources/Scripts/cache_consistency.py.md`
+`/Users/shlee/leesh/mynotes/03_Resources/Scripts/cache-consistency.md`
