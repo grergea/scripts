@@ -8,14 +8,14 @@ S3 오브젝트 스토리지의 원본 객체와 CDN 엣지에 캐시된 객체 
 
 ```bash
 # 가상 환경 생성 (별도 디렉터리)
-python3 -m venv /Users/shlee/leesh/python_venv/cache-consistency
+python3 -m venv ~/python_venv/cache-consistency
 
 # 가상 환경 활성화 및 의존성 설치
-source /Users/shlee/leesh/python_venv/cache-consistency/bin/activate
+source ~/python_venv/cache-consistency/bin/activate
 pip install -r requirements.txt
 ```
 
-**참고:** 가상 환경은 GitHub 저장소 외부(`~/leesh/python_venv/`)에 별도로 관리됩니다.
+**참고:** 가상 환경은 GitHub 저장소 외부(`~/python_venv/`)에 별도로 관리됩니다.
 
 ### 2. 실행
 
@@ -23,41 +23,41 @@ pip install -r requirements.txt
 
 ```bash
 # 가상 환경 활성화
-source /Users/shlee/leesh/python_venv/cache-consistency/bin/activate
+source ~/python_venv/cache-consistency/bin/activate
 
 # 스크립트 실행
 python cache_consistency.py \
-  --bucket oem-nsumjp-act \
-  --endpoint https://s3-jp-east-1.wcsapi.com \
-  --region jp-east-1 \
-  --prefix "update_data/sums_data/ccNC/ME!AE/19022/" \
-  --origin "http://oem-nsumjp-act.wcscdn55.v1.wcsapi.com" \
-  --origin-host "oem-nsumjp.map-care.com" \
-  --cdn "https://oem-nsumjp.map-care.com"
+  --bucket my-bucket \
+  --endpoint https://s3-region.wcsapi.com \
+  --region us-east-1 \
+  --prefix "data/path/to/objects/" \
+  --origin "http://my-bucket.wcscdn.example.com" \
+  --origin-host "origin.example.com" \
+  --cdn "https://cdn.example.com"
 ```
 
 #### 진행 상황 출력 (권장)
 
 ```bash
 python cache_consistency.py \
-  --bucket oem-nsumjp-act \
-  --endpoint https://s3-jp-east-1.wcsapi.com \
-  --region jp-east-1 \
-  --prefix "update_data/sums_data/ccNC/ME!AE/19022/" \
-  --origin "http://oem-nsumjp-act.wcscdn55.v1.wcsapi.com" \
-  --origin-host "oem-nsumjp.map-care.com" \
-  --cdn "https://oem-nsumjp.map-care.com" \
+  --bucket my-bucket \
+  --endpoint https://s3-region.wcsapi.com \
+  --region us-east-1 \
+  --prefix "data/path/to/objects/" \
+  --origin "http://my-bucket.wcscdn.example.com" \
+  --origin-host "origin.example.com" \
+  --cdn "https://cdn.example.com" \
   --verbose
 ```
 
 **출력 예시:**
 ```
-[INFO] 1483개 객체 발견
+[INFO] 1000개 객체 발견
 [INFO] 정합성 검사 진행중... (5 workers)
 
-[   1/1483] (  0.1%) ✓ [O:✓ C:✓] file1.txt
-[   2/1483] (  0.1%) ✓ [O:✓ C:✓] file2.txt
-[   3/1483] (  0.2%) ✗ [O:✓ C:✗] file3.txt
+[   1/1000] (  0.1%) ✓ [O:✓ C:✓] file1.txt
+[   2/1000] (  0.2%) ✓ [O:✓ C:✓] file2.txt
+[   3/1000] (  0.3%) ✗ [O:✓ C:✗] file3.txt
 ```
 
 - `O:✓` = 오리진 응답 성공
@@ -68,10 +68,10 @@ python cache_consistency.py \
 
 ```bash
 # ~/.zshrc 또는 ~/.bashrc에 추가
-alias cache-check='source /Users/shlee/leesh/python_venv/cache-consistency/bin/activate && python /Users/shlee/leesh/scripts-repo/cache-consistency/cache_consistency.py'
+alias cache-check='source ~/python_venv/cache-consistency/bin/activate && python ~/scripts/cache-consistency/cache_consistency.py'
 
 # 사용 예시
-cache-check --bucket mybucket --endpoint https://s3.example.com ...
+cache-check --bucket my-bucket --endpoint https://s3-region.wcsapi.com ...
 ```
 
 ## S3 인증 설정
@@ -93,14 +93,13 @@ export AWS_SECRET_ACCESS_KEY="your-secret-key"
 
 ### 성능 정보
 
-| 모드 | 요청 방식 | 요청 횟수 (1,483개 파일 기준) |
+| 모드 | 요청 방식 | 요청 횟수 (1,000개 파일 기준) |
 |------|----------|------------------------------|
-| 기본 모드 | HEAD × 2 | 2,966회 |
-| MD5 모드 | GET × 2 | 2,966회 (최적화됨) |
+| 기본 모드 | HEAD × 2 | 2,000회 |
+| MD5 모드 | GET × 2 | 2,000회 (최적화됨) |
 
 **MD5 모드 최적화:** GET 요청으로 헤더와 콘텐츠를 동시 수집하여 이중 요청 없음
 
 ## 상세 문서
 
-전체 문서는 Obsidian 노트 참조:
-`/Users/shlee/leesh/mynotes/03_Resources/Scripts/cache-consistency.md`
+전체 사용법, 옵션 설명, 트러블슈팅 가이드는 프로젝트 문서를 참조하세요.
