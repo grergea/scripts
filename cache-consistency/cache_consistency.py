@@ -59,12 +59,22 @@ class CacheConsistencyChecker:
             pages = paginator.paginate(Bucket=self.bucket, Prefix=self.prefix)
 
             objects = []
+            skipped_dirs = 0
             for page in pages:
                 if 'Contents' in page:
                     for obj in page['Contents']:
-                        objects.append(obj['Key'])
+                        key = obj['Key']
+                        # 디렉터리 객체 제외 (키가 /로 끝나는 경우)
+                        if key.endswith('/'):
+                            skipped_dirs += 1
+                            continue
+                        objects.append(key)
 
-            print(f"[INFO] {len(objects)}개 객체 발견")
+            print(f"[INFO] {len(objects)}개 객체 발견", end='')
+            if skipped_dirs > 0:
+                print(f" ({skipped_dirs}개 디렉터리 제외)")
+            else:
+                print()
             return objects
 
         except ClientError as e:
