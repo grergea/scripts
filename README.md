@@ -7,9 +7,10 @@
 | Script | Category | Description | Version |
 |--------|----------|-------------|---------|
 | [gdig](./gdig/) | `DNS` | 전 세계 DNS 서버에서 도메인 레코드 조회 | v1.0.0 |
-| [clean-note](./clean-note/) | `Obsidian` | AI 복사 텍스트 정리 (불필요한 숫자, 태그 제거) | v1.1.0 |
 | [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.0.0 |
 | [pcontents](./pcontents/) | `CDN` | 병렬 CDN 노드 콘텐츠 일관성 검증 | v1.0.0 |
+| [cache-consistency](./cache-consistency/) | `CDN` | S3 오리진과 CDN 엣지 캐시 간 객체 정합성 검증 | - |
+| [vault-management](./vault-management/) | `Obsidian` | 볼트 주간 리포트 생성 (클리핑 알림, 링크 상태 등) | - |
 
 ## Quick Start
 
@@ -20,7 +21,6 @@ cd scripts
 
 # 스크립트 실행
 ./gdig/gdig.sh a example.com
-./clean-note/clean-note.sh "노트.md" --dry-run
 python ./urlsigning/urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mykey
 ./pcontents/pcontents.sh -o https://www.example.com/image.jpg
 ```
@@ -41,23 +41,6 @@ python ./urlsigning/urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mykey
 **의존성:** `curl`, `jq`, `dig`, `parallel`
 
 → [상세 문서](./gdig/README.md)
-
-## clean-note - Obsidian 노트 정리
-
-Gemini/ChatGPT에서 복사한 텍스트의 불필요한 요소를 제거합니다.
-
-```bash
-./clean-note/clean-note.sh <파일> [옵션]
-
-# 예시
-./clean-note/clean-note.sh "노트.md"              # 정리 실행
-./clean-note/clean-note.sh "노트.md" --dry-run    # 미리보기
-./clean-note/clean-note.sh "노트.md" --backup     # 백업 후 정리
-```
-
-**의존성:** `sed`, `awk` (기본 포함)
-
-→ [상세 문서](./clean-note/README.md)
 
 ## urlsigning - CDN URL Signing Tool
 

@@ -13,30 +13,41 @@
 
 ```
 scripts-repo/
-├── README.md           # 메인 (스크립트 요약)
-├── CLAUDE.md           # Claude Code 가이드
-├── LICENSE             # MIT 라이선스
+├── README.md              # 메인 (스크립트 요약)
+├── CLAUDE.md              # Claude Code 가이드
+├── LICENSE                # MIT 라이선스
 │
-├── gdig/               # DNS 체커
-│   ├── README.md       # 상세 문서
-│   └── gdig.sh         # 스크립트
+├── gdig/                  # DNS 체커
+│   ├── README.md
+│   └── gdig.sh
 │
-├── clean-note/         # 노트 정리
-│   ├── README.md       # 상세 문서
-│   └── clean-note.sh   # 스크립트
+├── urlsigning/            # CDN URL 서명
+│   ├── README.md
+│   └── urlsigning.py
 │
-└── urlsigning/         # CDN URL 서명
-    ├── README.md       # 상세 문서
-    └── urlsigning.py   # 스크립트
+├── pcontents/             # CDN 노드 콘텐츠 일관성 검증
+│   └── pcontents.sh
+│
+├── cache-consistency/     # S3↔CDN 캐시 정합성 검증
+│   ├── README.md
+│   ├── cache_consistency.py
+│   └── requirements.txt
+│
+└── vault-management/      # Obsidian 볼트 주간 리포트
+    └── weekly-vault-review.py
 ```
+
+> **로컬 전용 (미추적)**: `bluer-collector/` — 민감 데이터 포함, `.gitignore` 처리
 
 ## 스크립트 목록
 
 | 스크립트 | 카테고리 | 설명 | 의존성 |
 |----------|----------|------|--------|
 | `gdig/gdig.sh` | DNS | 전 세계 DNS 서버에서 도메인 레코드 조회 | curl, jq, dig, parallel |
-| `clean-note/clean-note.sh` | Obsidian | AI 복사 텍스트 정리 | sed, awk |
 | `urlsigning/urlsigning.py` | CDN | CDN URL 서명 생성 | Python 3.6+ |
+| `pcontents/pcontents.sh` | CDN | 병렬 CDN 노드 콘텐츠 일관성 검증 | curl, parallel |
+| `cache-consistency/cache_consistency.py` | CDN | S3 오리진↔CDN 엣지 캐시 정합성 검증 | Python, boto3 |
+| `vault-management/weekly-vault-review.py` | Obsidian | 볼트 주간 리포트 생성 | Python 3.10+ |
 
 ## 연관 Obsidian 노트
 
