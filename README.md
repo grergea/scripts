@@ -10,7 +10,6 @@
 | [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.0.0 |
 | [pcontents](./pcontents/) | `CDN` | 병렬 CDN 노드 콘텐츠 일관성 검증 | v1.0.0 |
 | [cache-consistency](./cache-consistency/) | `CDN` | S3 오리진과 CDN 엣지 캐시 간 객체 정합성 검증 | - |
-| [vault-management](./vault-management/) | `Obsidian` | 볼트 주간 리포트 생성 (클리핑 알림, 링크 상태 등) | - |
 
 ## Quick Start
 

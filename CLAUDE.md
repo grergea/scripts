@@ -28,16 +28,14 @@ scripts-repo/
 ├── pcontents/             # CDN 노드 콘텐츠 일관성 검증
 │   └── pcontents.sh
 │
-├── cache-consistency/     # S3↔CDN 캐시 정합성 검증
-│   ├── README.md
-│   ├── cache_consistency.py
-│   └── requirements.txt
-│
-└── vault-management/      # Obsidian 볼트 주간 리포트
-    └── weekly-vault-review.py
+└── cache-consistency/     # S3↔CDN 캐시 정합성 검증
+    ├── README.md
+    ├── cache_consistency.py
+    └── requirements.txt
 ```
 
 > **로컬 전용 (미추적)**: `bluer-collector/` — 민감 데이터 포함, `.gitignore` 처리
+> **Obsidian 볼트 관리 스크립트**: `scripts-skills` 레포 관리 (https://github.com/grergea/scripts-skills)
 
 ## 스크립트 목록
 
@@ -47,7 +45,6 @@ scripts-repo/
 | `urlsigning/urlsigning.py` | CDN | CDN URL 서명 생성 | Python 3.6+ |
 | `pcontents/pcontents.sh` | CDN | 병렬 CDN 노드 콘텐츠 일관성 검증 | curl, parallel |
 | `cache-consistency/cache_consistency.py` | CDN | S3 오리진↔CDN 엣지 캐시 정합성 검증 | Python, boto3 |
-| `vault-management/weekly-vault-review.py` | Obsidian | 볼트 주간 리포트 생성 | Python 3.10+ |
 
 ## 연관 Obsidian 노트
 
