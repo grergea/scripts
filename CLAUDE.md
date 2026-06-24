@@ -28,10 +28,12 @@ scripts-repo/
 ├── pcontents/             # CDN 노드 콘텐츠 일관성 검증
 │   └── pcontents.sh
 │
-└── cache-consistency/     # S3↔CDN 캐시 정합성 검증
-    ├── README.md
-    ├── cache_consistency.py
-    └── requirements.txt
+├── cache-consistency/     # S3↔CDN 캐시 정합성 검증
+│   ├── README.md
+│   ├── cache_consistency.py
+│   └── requirements.txt
+│
+└── vault-management/      # Obsidian 볼트 관리 유틸리티
 ```
 
 > **로컬 전용 (미추적)**: `bluer-collector/` — 민감 데이터 포함, `.gitignore` 처리
@@ -45,6 +47,23 @@ scripts-repo/
 | `urlsigning/urlsigning.py` | CDN | CDN URL 서명 생성 | Python 3.6+ |
 | `pcontents/pcontents.sh` | CDN | 병렬 CDN 노드 콘텐츠 일관성 검증 | curl, parallel |
 | `cache-consistency/cache_consistency.py` | CDN | S3 오리진↔CDN 엣지 캐시 정합성 검증 | Python, boto3 |
+
+## 실행 예시 (Quick Reference)
+
+```bash
+# gdig: DNS 조회
+bash gdig/gdig.sh example.com A
+
+# urlsigning: CDN URL 서명 생성
+python urlsigning/urlsigning.py --key KEY --url URL
+
+# pcontents: CDN 노드 콘텐츠 정합성 검증
+bash pcontents/pcontents.sh
+
+# cache-consistency: S3↔CDN 캐시 정합성 검증 (AWS credentials 필요)
+pip install -r cache-consistency/requirements.txt
+python cache-consistency/cache_consistency.py
+```
 
 ## 연관 Obsidian 노트
 
@@ -70,5 +89,5 @@ Add/Update/Fix 스크립트명 - 간단한 설명
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```

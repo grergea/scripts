@@ -5,7 +5,7 @@ import time
 import random
 import uuid
 import socket
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 def mask_key(key):
     """키를 마스킹하여 보안 유지"""
@@ -148,8 +148,9 @@ def main():
     parser = argparse.ArgumentParser(description='Generate signed URL using MD5 or SHA256')
     parser.add_argument('-m', '--mode', choices=['A', 'B', 'C', 'D', 'E', 'UTV'], required=True, help='Signing mode (A, B, C, D, E, UTV)')
     parser.add_argument('-s', '--scheme', choices=['http', 'https'], default='https', help='Scheme (http or https)')
-    parser.add_argument('-r', '--host', required=True, help='Resource hostname')
-    parser.add_argument('-p', '--path', required=True, help='File path of resource')
+    parser.add_argument('-u', '--url', default=None, help='Full URL to sign (parses scheme/host/path; overrides -s/-r/-p)')
+    parser.add_argument('-r', '--host', default=None, help='Resource hostname')
+    parser.add_argument('-p', '--path', default=None, help='File path of resource')
     parser.add_argument('-k', '--key', required=True, help='URL signing key')
     parser.add_argument('-t', '--start_time', type=int, default=int(time.time()), help='Starting time of the URL (Unix timestamp)')
     parser.add_argument('--hex-time', action='store_true', help='Convert start_time to hexadecimal format')
@@ -163,6 +164,20 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable debug output (keys are masked)')
 
     args = parser.parse_args()
+
+    if args.url:
+        parsed = urlparse(args.url)
+        if parsed.scheme:
+            args.scheme = parsed.scheme
+        if parsed.netloc:
+            args.host = parsed.netloc
+        if parsed.path:
+            args.path = parsed.path
+
+    if not args.host:
+        parser.error("Provide -r/--host or -u/--url with a hostname")
+    if not args.path:
+        parser.error("Provide -p/--path or -u/--url with a path")
 
     if sorted(args.sign_order) != ['k', 'p', 't']:
         parser.error("--sign-order must contain exactly 'k', 'p', 't' each once (e.g., pkt, kpt, ktp)")
