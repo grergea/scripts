@@ -147,7 +147,7 @@ def generate_signed_url(mode, scheme, host, path, key, start_time, hex_time=Fals
 def main():
     parser = argparse.ArgumentParser(description='Generate signed URL using MD5 or SHA256')
     parser.add_argument('-m', '--mode', choices=['A', 'B', 'C', 'D', 'E', 'UTV'], required=True, help='Signing mode (A, B, C, D, E, UTV)')
-    parser.add_argument('-s', '--scheme', choices=['http', 'https'], default='http', help='Scheme (http or https)')
+    parser.add_argument('-s', '--scheme', choices=['http', 'https'], default='https', help='Scheme (http or https)')
     parser.add_argument('-r', '--host', required=True, help='Resource hostname')
     parser.add_argument('-p', '--path', required=True, help='File path of resource')
     parser.add_argument('-k', '--key', required=True, help='URL signing key')
