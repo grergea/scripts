@@ -5,7 +5,8 @@
 ## 저장소 정보
 
 - **이름**: scripts
-- **GitHub**: https://github.com/grergea/scripts
+- **GitHub**: https://github.com/grergea/scripts (**공개 저장소** — 민감정보 절대 금지)
+- **브랜치**: master (`git push origin master`)
 - **용도**: 유용한 셸 스크립트 모음
 - **소유자**: 이상훈
 
@@ -67,7 +68,7 @@ python cache-consistency/cache_consistency.py
 
 ## 연관 Obsidian 노트
 
-- 스크립트 문서: `/Users/shlee/leesh/mynotes/03_Resources/Scripts/`
+- 스크립트 문서: `/Users/shlee/mynotes/03_Resources/Scripts/`
 - 스크립트 인덱스: `🏷 Scripts.md`
 
 ## 작업 규칙
