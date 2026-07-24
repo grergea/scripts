@@ -1,4 +1,8 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
+
+# zsh compatibility: use 0-indexed arrays (bash/ksh style) throughout
+setopt KSH_ARRAYS
+SCRIPT_PATH="${0:A}"
 
 # Script configuration
 SCRIPT_NAME="$(basename "$0")"
@@ -13,6 +17,50 @@ CURL_HEADERS=(
   -H 'Accept: application/json'
   -H 'Referer: https://www.whatsmydns.net/'
 )
+
+# --- Worker Function ---
+# Defined early and dispatched here (before check_pkgs/layout calc) so that
+# `xargs ... zsh "$SCRIPT_PATH" __worker__ ...` can re-invoke this script as
+# a parallel worker. zsh has no equivalent of bash's `export -f`, so
+# self-exec (instead of exporting the function into a `bash -c` subshell)
+# is the portable way to parallelize this under zsh.
+function dns_worker() {
+  local entry="$1"
+  local type="$2"
+  local domain="$3"
+  local headers=(
+    -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    -H 'Accept: application/json'
+    -H 'Referer: https://www.whatsmydns.net/'
+  )
+
+  IFS='|' read -r id country location provider <<< "$entry"
+  local server_info="[${country}] ${location}"
+  local url="https://www.whatsmydns.net/api/details?server=$id&type=$type&query=$domain"
+
+  local result
+  result=$(curl --keepalive-time 1 --max-time 10 --retry 2 -s "${headers[@]}" -H 'x-requested-with: XMLHttpRequest' "$url")
+
+  if [[ -n "$result" ]] && echo "$result" | jq -e . >/dev/null 2>&1; then
+    local responses
+    # Keep internal data comma-separated
+    responses=$(echo "$result" | jq -r '.data[].response[]?' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    responses=$(echo "$responses" | sed 's/, /,/g')
+
+    if [[ -n "$responses" ]]; then
+      echo "OK|${server_info}|${provider}|${responses}"
+    else
+      echo "EMPTY|${server_info}|${provider}|No data"
+    fi
+  else
+    echo "ERROR|${server_info}|${provider}|Request failed"
+  fi
+}
+
+if [[ "${1:-}" == "__worker__" ]]; then
+  dns_worker "$2" "$3" "$4"
+  exit 0
+fi
 
 # Color codes
 RED='\033[0;31m'
@@ -82,26 +130,24 @@ function draw_header() {
 function wrap_text_to_array() {
     local text="$1"
     local width="$2"
-    local -n arr_ref="$3"
 
     if [ -z "$text" ]; then
-        arr_ref+=("")
+        printf '%s\n' ""
         return
     fi
-    while IFS= read -r line; do
-        arr_ref+=("$line")
-    done < <(echo "$text" | fold -s -w "$width")
+    echo "$text" | fold -s -w "$width"
 }
 
 function wrap_response_to_array() {
     local text="$1"
     local width="$2"
-    local -n arr_ref="$3"
 
     # Split by comma (internal format), output with Space
-    IFS=',' read -ra ADDR <<< "$text"
+    local -a ADDR
+    IFS=',' read -rA ADDR <<< "$text"
     local current_line=""
-    
+    local has_output=0
+
     for addr in "${ADDR[@]}"; do
         addr=$(echo "$addr" | xargs) # trim
         [ -z "$addr" ] && continue
@@ -111,7 +157,8 @@ function wrap_response_to_array() {
 
         if [ $(( ${#current_line} + needed_len )) -gt "$width" ]; then
             if [ -n "$current_line" ]; then
-                arr_ref+=("$current_line")
+                printf '%s\n' "$current_line"
+                has_output=1
             fi
             current_line="$addr"
         else
@@ -122,11 +169,12 @@ function wrap_response_to_array() {
             fi
         fi
     done
-    
+
     if [ -n "$current_line" ]; then
-        arr_ref+=("$current_line")
+        printf '%s\n' "$current_line"
+        has_output=1
     fi
-    if [ ${#arr_ref[@]} -eq 0 ]; then arr_ref+=("No data"); fi
+    [ "$has_output" -eq 0 ] && printf '%s\n' "No data"
 }
 
 function draw_row() {
@@ -135,13 +183,11 @@ function draw_row() {
   local response="$3"
   local color="${4:-$NC}"
   
-  local s_lines=()
-  local p_lines=()
-  local r_lines=()
+  local -a s_lines p_lines r_lines
 
-  wrap_text_to_array "$server" $((COL_SERVER - 1)) s_lines
-  wrap_text_to_array "$provider" $((COL_PROVIDER - 1)) p_lines
-  wrap_response_to_array "$response" $((COL_RESPONSE - 1)) r_lines
+  s_lines=("${(@f)$(wrap_text_to_array "$server" $((COL_SERVER - 1)))}")
+  p_lines=("${(@f)$(wrap_text_to_array "$provider" $((COL_PROVIDER - 1)))}")
+  r_lines=("${(@f)$(wrap_response_to_array "$response" $((COL_RESPONSE - 1)))}")
 
   local max_h=${#s_lines[@]}
   [ ${#p_lines[@]} -gt $max_h ] && max_h=${#p_lines[@]}
@@ -157,41 +203,6 @@ function draw_row() {
   done
   draw_separator
 }
-
-# --- Worker Function ---
-function dns_worker() {
-  local entry="$1"
-  local type="$2"
-  local domain="$3"
-  local headers=(
-    -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-    -H 'Accept: application/json'
-    -H 'Referer: https://www.whatsmydns.net/'
-  )
-
-  IFS='|' read -r id country location provider <<< "$entry"
-  local server_info="[${country}] ${location}"
-  local url="https://www.whatsmydns.net/api/details?server=$id&type=$type&query=$domain"
-
-  local result
-  result=$(curl --keepalive-time 1 --max-time 10 --retry 2 -s "${headers[@]}" -H 'x-requested-with: XMLHttpRequest' "$url")
-
-  if [[ -n "$result" ]] && echo "$result" | jq -e . >/dev/null 2>&1; then
-    local responses
-    # Keep internal data comma-separated
-    responses=$(echo "$result" | jq -r '.data[].response[]?' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-    responses=$(echo "$responses" | sed 's/, /,/g')
-
-    if [[ -n "$responses" ]]; then
-      echo "OK|${server_info}|${provider}|${responses}"
-    else
-      echo "EMPTY|${server_info}|${provider}|No data"
-    fi
-  else
-    echo "ERROR|${server_info}|${provider}|Request failed"
-  fi
-}
-export -f dns_worker
 
 # --- Local Lookup ---
 function local_lookup() {
@@ -225,9 +236,9 @@ esac
 
 [ $# -lt 2 ] && { echo "Usage: $SCRIPT_NAME <type> <domain> [country]"; exit 1; }
 
-TYPE=${1^^}
+TYPE=${(U)1}
 DOMAIN=${2}
-COUNTRY=${3^^}
+COUNTRY=${(U)3}
 
 mkdir -p "$CACHE_DIR"
 RAW_DATA=""
@@ -258,7 +269,7 @@ JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 JOBS=$((JOBS * 2))
 
 : > "$RESULT_FILE"
-echo "$FILTERED_LIST" | xargs -P "$JOBS" -I {} bash -c 'dns_worker "$@"' _ "{}" "$TYPE" "$DOMAIN" >> "$RESULT_FILE"
+echo "$FILTERED_LIST" | xargs -P "$JOBS" -I {} zsh "$SCRIPT_PATH" __worker__ "{}" "$TYPE" "$DOMAIN" >> "$RESULT_FILE"
 
 declare -A UNIQUE_IPS
 TOTAL_COUNT=0
@@ -267,9 +278,9 @@ SUCCESS_COUNT=0
 draw_header
 
 if [ -f "$RESULT_FILE" ]; then
-  while IFS='|' read -r status server provider response; do
+  while IFS='|' read -r result_status server provider response; do
     ((TOTAL_COUNT++))
-    case "$status" in
+    case "$result_status" in
       OK)
         ((SUCCESS_COUNT++))
         draw_row "$server" "$provider" "$response" "$GREEN"
