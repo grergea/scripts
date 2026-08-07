@@ -12,6 +12,12 @@ RESULT_FILE="${CACHE_DIR}/results_$$.tmp"
 CACHE_EXPIRY=86400  # 24 hours
 CURL_TIMEOUT=10
 CURL_RETRY=2
+# The API returns a random ~22-server sample of a larger pool on each request,
+# so the cache accumulates the union across samples instead of overwriting it.
+SERVER_SAMPLES=10        # API calls per cache refresh
+SERVER_SAMPLES_DEEP=30   # API calls for --refresh-servers (saturates the pool)
+SERVER_STALE=2592000     # 30 days: drop servers not seen in any sample since
+FETCH_JOBS=10
 CURL_HEADERS=(
   -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
   -H 'Accept: application/json'
@@ -59,6 +65,15 @@ function dns_worker() {
 
 if [[ "${1:-}" == "__worker__" ]]; then
   dns_worker "$2" "$3" "$4"
+  exit 0
+fi
+
+# Fetches one server sample. The endpoint sends `cache-control: max-age=3600`
+# and sits behind Cloudflare, so a cache-busting nonce is required or every
+# call returns the same sample.
+if [[ "${1:-}" == "__fetch_servers__" ]]; then
+  curl -s --max-time "$CURL_TIMEOUT" "${CURL_HEADERS[@]}" \
+    "https://www.whatsmydns.net/api/servers?_=$2" | jq -c '.[]?' 2>/dev/null
   exit 0
 fi
 
@@ -227,6 +242,46 @@ function local_lookup() {
   ((TOTAL_COUNT++))
 }
 
+# --- Server Cache ---
+# Collects several samples in parallel and merges them into the cached pool by
+# server id, refreshing last_seen for every server observed in this run and
+# dropping the ones missing for longer than SERVER_STALE.
+function refresh_server_cache() {
+  local samples="$1"
+  local nonce="${RANDOM}${$}"
+  local tmp_file="${CACHE_DIR}/servers_fetch_$$.tmp"
+  local i
+
+  mkdir -p "$CACHE_DIR"
+  for ((i=1; i<=samples; i++)); do echo "${nonce}${i}"; done | \
+    xargs -P "$FETCH_JOBS" -I {} zsh "$SCRIPT_PATH" __fetch_servers__ "{}" > "$tmp_file"
+
+  if [ ! -s "$tmp_file" ]; then rm -f "$tmp_file"; return 1; fi
+
+  local old_data='[]'
+  [ -f "$CACHE_FILE" ] && jq -e . "$CACHE_FILE" >/dev/null 2>&1 && old_data=$(cat "$CACHE_FILE")
+
+  local merged
+  merged=$(jq -s --argjson old "$old_data" --argjson now "$(date +%s)" --argjson ttl "$SERVER_STALE" '
+      (($old | map({key: .id, value: (. + {last_seen: (.last_seen // $now)})}) | from_entries)
+       + (map({key: .id, value: (. + {last_seen: $now})}) | from_entries))
+      | [.[]]
+      | map(select($now - .last_seen <= $ttl))
+      | sort_by(.country, .location, .id)
+    ' "$tmp_file" 2>/dev/null)
+
+  rm -f "$tmp_file"
+
+  if [ -z "$merged" ] || ! echo "$merged" | jq -e 'length > 0' >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local before=$(echo "$old_data" | jq 'length')
+  local after=$(echo "$merged" | jq 'length')
+  echo "$merged" > "$CACHE_FILE"
+  echo -e "Server list: ${after} servers (was ${before}, ${samples} samples merged)" >&2
+}
+
 # --- Main Logic ---
 USAGE="Usage: $SCRIPT_NAME <type> <domain> [country] [--uniq]"
 
@@ -244,7 +299,16 @@ set -- "${POSITIONAL[@]}"
 case "${1:-}" in
   --list-countries) echo "Codes: KR, US, JP, CN, etc."; exit 0 ;;
   --clear-cache) rm -f "$CACHE_FILE" && echo "Cache cleared."; exit 0 ;;
-  --help) echo "$USAGE"; echo "  --uniq   Also print the deduplicated list of resolved answers"; exit 0 ;;
+  --refresh-servers)
+    refresh_server_cache "$SERVER_SAMPLES_DEEP" || { echo -e "${RED}Server list refresh failed.${NC}"; exit 1; }
+    exit 0 ;;
+  --help)
+    echo "$USAGE"
+    echo "  --uniq              Also print the deduplicated list of resolved answers"
+    echo "  --refresh-servers   Collect $SERVER_SAMPLES_DEEP samples to saturate the cached server pool"
+    echo "  --clear-cache       Delete the accumulated server cache"
+    echo "  --list-countries    Show country codes"
+    exit 0 ;;
 esac
 
 [ $# -lt 2 ] && { echo "$USAGE"; exit 1; }
@@ -262,8 +326,8 @@ if [ -f "$CACHE_FILE" ]; then
 fi
 
 if [ -z "$RAW_DATA" ] || ! echo "$RAW_DATA" | jq -e . >/dev/null 2>&1; then
-    RAW_DATA=$(curl -s --max-time 10 "${CURL_HEADERS[@]}" https://www.whatsmydns.net/api/servers)
-    echo "$RAW_DATA" | jq -e . >/dev/null 2>&1 && echo "$RAW_DATA" > "$CACHE_FILE"
+    refresh_server_cache "$SERVER_SAMPLES"
+    [ -f "$CACHE_FILE" ] && RAW_DATA=$(cat "$CACHE_FILE")
 fi
 
 if [ -z "$RAW_DATA" ]; then echo -e "${RED}API Error.${NC}"; exit 1; fi

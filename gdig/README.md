@@ -7,7 +7,7 @@
 - **Parallel Processing**: xargs를 사용한 동시 DNS 쿼리 (외부 의존성 최소화)
 - **Global Coverage**: 20개국 이상의 DNS 서버 조회
 - **Local DNS Check**: Cloudflare, Google, 국내 ISP(SKT/KT/LG) DNS 서버 포함
-- **Caching**: 24시간 DNS 서버 목록 캐시
+- **Caching**: 24시간 DNS 서버 목록 캐시 (샘플을 누적 병합하여 조회 대상 서버를 확장)
 - **Dynamic Table Output**: 터미널 너비에 맞게 자동 조정되는 컬럼
 - **Country Filter**: 국가 코드로 결과 필터링
 - **Color Output**: 결과 상태별 색상 구분 (성공/실패/빈 응답)
@@ -76,7 +76,8 @@ sudo ln -s $(pwd)/gdig.sh /usr/local/bin/gdig
 ```bash
 ./gdig.sh a example.com --uniq  # 유니크 응답 목록 추가 출력 (위치 무관)
 ./gdig.sh --list-countries      # 사용 가능한 국가 코드 표시
-./gdig.sh --clear-cache         # 서버 캐시 삭제
+./gdig.sh --refresh-servers     # 서버 목록 심층 수집 (30 샘플 병합)
+./gdig.sh --clear-cache         # 누적된 서버 캐시 삭제
 ./gdig.sh --help                # 도움말 표시
 ```
 
@@ -91,6 +92,19 @@ Unique IPs (4):
 211.56.106.109
 211.56.106.110
 ```
+
+### Server Cache
+
+whatsmydns.net API(`/api/servers`)는 전체 서버 풀에서 무작위로 **22개만 샘플링**해 반환합니다. 따라서 응답 하나만 그대로 쓰면 가용 서버의 1/3만 조회하게 됩니다.
+
+`~/.cache/gdig/servers_cache.json`은 이 샘플들을 서버 `id` 기준으로 **누적 병합**합니다.
+
+- 캐시 만료(24시간) 시 10개 샘플을 병렬 수집해 기존 목록에 병합
+- 각 서버에 `last_seen`을 기록하고, 30일간 어떤 샘플에도 나오지 않은 서버는 제거
+- `--refresh-servers`는 30개 샘플을 수집해 풀을 즉시 포화시킴 (실측 약 65~69개)
+- API 응답에 `cache-control: max-age=3600`이 걸려 있고 Cloudflare 앞단 캐시가 있어, 매 요청에 캐시버스터 파라미터를 붙여 새 샘플을 받습니다
+
+한국 기준으로 단일 샘플은 KT 1개만 잡히지만, 누적하면 LG Dacom이 추가됩니다. 미국은 5개 → 21개로 늘어납니다.
 
 ### Environment Variables
 
