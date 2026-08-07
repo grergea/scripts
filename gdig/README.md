@@ -93,6 +93,14 @@ Unique IPs (4):
 211.56.106.110
 ```
 
+### Response Column
+
+성공 시 IP 목록이, 실패 시 원인이 표시됩니다.
+
+- `NXDOMAIN`, `SERVFAIL` 등 — 해당 DNS 서버가 돌려준 rcode
+- `DNS query timed out` — whatsmydns가 그 DNS 서버에 질의했다가 응답을 못 받은 경우. 일시적 현상이라 자동으로 1회 재시도합니다 (실측: 서버당 약 18% 발생, 그중 92%가 재시도로 회수)
+- `Request failed`(빨간색) — gdig에서 whatsmydns API 호출 자체가 실패
+
 ### Server Cache
 
 whatsmydns.net API(`/api/servers`)는 전체 서버 풀에서 무작위로 **22개만 샘플링**해 반환합니다. 따라서 응답 하나만 그대로 쓰면 가용 서버의 1/3만 조회하게 됩니다.
@@ -105,6 +113,8 @@ whatsmydns.net API(`/api/servers`)는 전체 서버 풀에서 무작위로 **22�
 - API 응답에 `cache-control: max-age=3600`이 걸려 있고 Cloudflare 앞단 캐시가 있어, 매 요청에 캐시버스터 파라미터를 붙여 새 샘플을 받습니다
 
 한국 기준으로 단일 샘플은 KT 1개만 잡히지만, 누적하면 LG Dacom이 추가됩니다. 미국은 5개 → 21개로 늘어납니다.
+
+API가 리졸버 IP를 노출하지 않아 서로 다른 서버가 같은 국가·위치·제공자로 표시되는 경우가 있습니다(Google Mountain View 4개, Cloudflare Ashburn 2개 등). 이런 항목은 `Google #1` ~ `Google #4` 처럼 번호를 붙여 구분합니다.
 
 ### Environment Variables
 
