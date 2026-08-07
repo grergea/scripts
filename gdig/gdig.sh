@@ -220,7 +220,7 @@ function local_lookup() {
   if [ -n "$dig_out" ]; then
     draw_row "$server_ip" "$provider_name" "$dig_out" "$GREEN"
     ((SUCCESS_COUNT++))
-    for ip in ${dig_out//,/ }; do UNIQUE_IPS["$ip"]=1; done
+    ALL_ANSWERS+=(${(s:,:)dig_out})
   else
     draw_row "$server_ip" "$provider_name" "No response" "$YELLOW"
   fi
@@ -228,13 +228,26 @@ function local_lookup() {
 }
 
 # --- Main Logic ---
+USAGE="Usage: $SCRIPT_NAME <type> <domain> [country] [--uniq]"
+
+# Extract flags so positional args stay in order regardless of flag placement
+UNIQ_MODE=0
+POSITIONAL=()
+for arg in "$@"; do
+  case "$arg" in
+    --uniq) UNIQ_MODE=1 ;;
+    *) POSITIONAL+=("$arg") ;;
+  esac
+done
+set -- "${POSITIONAL[@]}"
+
 case "${1:-}" in
   --list-countries) echo "Codes: KR, US, JP, CN, etc."; exit 0 ;;
   --clear-cache) rm -f "$CACHE_FILE" && echo "Cache cleared."; exit 0 ;;
-  --help) echo "Usage: $SCRIPT_NAME <type> <domain> [country]"; exit 0 ;;
+  --help) echo "$USAGE"; echo "  --uniq   Also print the deduplicated list of resolved answers"; exit 0 ;;
 esac
 
-[ $# -lt 2 ] && { echo "Usage: $SCRIPT_NAME <type> <domain> [country]"; exit 1; }
+[ $# -lt 2 ] && { echo "$USAGE"; exit 1; }
 
 TYPE=${(U)1}
 DOMAIN=${2}
@@ -271,7 +284,7 @@ JOBS=$((JOBS * 2))
 : > "$RESULT_FILE"
 echo "$FILTERED_LIST" | xargs -P "$JOBS" -I {} zsh "$SCRIPT_PATH" __worker__ "{}" "$TYPE" "$DOMAIN" >> "$RESULT_FILE"
 
-declare -A UNIQUE_IPS
+ALL_ANSWERS=()
 TOTAL_COUNT=0
 SUCCESS_COUNT=0
 
@@ -284,7 +297,7 @@ if [ -f "$RESULT_FILE" ]; then
       OK)
         ((SUCCESS_COUNT++))
         draw_row "$server" "$provider" "$response" "$GREEN"
-        for ip in ${response//,/ }; do UNIQUE_IPS["$ip"]=1; done
+        ALL_ANSWERS+=(${(s:,:)response})
         ;;
       EMPTY) draw_row "$server" "$provider" "$response" "$YELLOW" ;;
       ERROR) draw_row "$server" "$provider" "$response" "$RED" ;;
@@ -311,6 +324,18 @@ if [[ "${COUNTRY}" == "KR" ]] || [[ -z "$COUNTRY" ]]; then
     done
 fi
 
+# Strip the trailing dot so local dig output (FQDN with dot) and the
+# whatsmydns API output (no dot) dedupe to the same CNAME/NS value
+UNIQUE_IPS=("${(@u)${ALL_ANSWERS[@]%.}}")
+
 echo ""
 echo -e "${BOLD}Summary:${NC} $TOTAL_COUNT queried | $SUCCESS_COUNT success | ${#UNIQUE_IPS[@]} unique IPs"
+
+if [ "$UNIQ_MODE" -eq 1 ] && [ ${#UNIQUE_IPS[@]} -gt 0 ]; then
+  echo ""
+  echo -e "${BOLD}Unique IPs (${#UNIQUE_IPS[@]}):${NC}"
+  printf '%s\n' "${UNIQUE_IPS[@]}" | sort -V
+fi
+
+echo ""
 echo -e "${GREEN}Done.${NC}"

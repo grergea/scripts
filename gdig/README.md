@@ -41,7 +41,7 @@ sudo ln -s $(pwd)/gdig.sh /usr/local/bin/gdig
 ## Usage
 
 ```bash
-./gdig.sh <type> <domain> [country]
+./gdig.sh <type> <domain> [country] [--uniq]
 ```
 
 ### Arguments
@@ -66,14 +66,30 @@ sudo ln -s $(pwd)/gdig.sh /usr/local/bin/gdig
 
 # CNAME 레코드 조회
 ./gdig.sh cname www.example.com
+
+# 조회 결과에서 중복 제거한 응답 목록을 함께 출력
+./gdig.sh a www.example.com kr --uniq
 ```
 
 ### Options
 
 ```bash
-./gdig.sh --list-countries    # 사용 가능한 국가 코드 표시
-./gdig.sh --clear-cache       # 서버 캐시 삭제
-./gdig.sh --help              # 도움말 표시
+./gdig.sh a example.com --uniq  # 유니크 응답 목록 추가 출력 (위치 무관)
+./gdig.sh --list-countries      # 사용 가능한 국가 코드 표시
+./gdig.sh --clear-cache         # 서버 캐시 삭제
+./gdig.sh --help                # 도움말 표시
+```
+
+`--uniq`는 표 출력에 더해, 모든 DNS 서버가 반환한 응답을 중복 제거·정렬한 목록을 Summary 뒤에 출력합니다. CNAME/NS는 끝점(`.`) 유무를 같은 값으로 취급합니다.
+
+```
+Summary: 11 queried | 11 success | 4 unique IPs
+
+Unique IPs (4):
+211.56.106.69
+211.56.106.79
+211.56.106.109
+211.56.106.110
 ```
 
 ### Environment Variables
