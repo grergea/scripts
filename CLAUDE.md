@@ -34,6 +34,10 @@ scripts-repo/
 │   ├── cache_consistency.py
 │   └── requirements.txt
 │
+├── sslyze-map/            # sslyze cipher 표기 변환 래퍼
+│   ├── README.md
+│   └── sslyze-map.sh
+│
 └── vault-management/      # Obsidian 볼트 관리 유틸리티
 ```
 
@@ -48,6 +52,7 @@ scripts-repo/
 | `urlsigning/urlsigning.py` | CDN | CDN URL 서명 생성 | Python 3.6+ |
 | `pcontents/pcontents.sh` | CDN | 병렬 CDN 노드 콘텐츠 일관성 검증 | curl, parallel |
 | `cache-consistency/cache_consistency.py` | CDN | S3 오리진↔CDN 엣지 캐시 정합성 검증 | Python, boto3 |
+| `sslyze-map/sslyze-map.sh` | CDN | sslyze 결과를 IANA / OpenSSL 표기로 골라서 출력 | sslyze, jq |
 
 ## 실행 예시 (Quick Reference)
 
@@ -64,6 +69,9 @@ bash pcontents/pcontents.sh
 # cache-consistency: S3↔CDN 캐시 정합성 검증 (AWS credentials 필요)
 pip install -r cache-consistency/requirements.txt
 python cache-consistency/cache_consistency.py
+
+# sslyze-map: TLS 버전별 cipher를 OpenSSL 표기로 출력
+bash sslyze-map/sslyze-map.sh --mapping openssl --tlsv1_2 --tlsv1_3 example.com
 ```
 
 ## 연관 Obsidian 노트

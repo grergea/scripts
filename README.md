@@ -10,6 +10,7 @@
 | [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.0.0 |
 | [pcontents](./pcontents/) | `CDN` | 병렬 CDN 노드 콘텐츠 일관성 검증 | v1.0.0 |
 | [cache-consistency](./cache-consistency/) | `CDN` | S3 오리진과 CDN 엣지 캐시 간 객체 정합성 검증 | - |
+| [sslyze-map](./sslyze-map/) | `CDN` | sslyze 결과를 IANA / OpenSSL 표기로 골라서 출력 | v1.0.0 |
 
 ## Quick Start
 
