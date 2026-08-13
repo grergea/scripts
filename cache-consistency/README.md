@@ -74,6 +74,25 @@ alias cache-check='source ~/python_venv/cache-consistency/bin/activate && python
 cache-check --bucket my-bucket --endpoint https://s3-region.wcsapi.com ...
 ```
 
+### 수동 URL 모드 (S3 미사용, NAS/HTTP 오리진)
+
+오리진이 S3 호환이 아니어서 버킷 목록 조회가 불가능한 경우(NAS 등), `--urls` 또는 `--url-file`로 검사할 객체 경로를 직접 지정합니다. 이 모드는 `--bucket`/`--endpoint`/`--region`/`--prefix`와 boto3가 필요 없습니다.
+
+```bash
+python cache_consistency.py \
+  --origin "http://origin.example.com" \
+  --cdn "https://cdn.example.com" \
+  --urls "path/to/file1.mp4" "path/to/file2.mp4" \
+  --verbose
+
+# 또는 파일 목록으로
+python cache_consistency.py \
+  --origin "http://origin.example.com" \
+  --cdn "https://cdn.example.com" \
+  --url-file paths.txt \
+  --verbose
+```
+
 ## S3 인증 설정
 
 ```bash
