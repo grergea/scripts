@@ -90,12 +90,11 @@ bash sslyze-map/sslyze-map.sh --mapping openssl --tlsv1_2 --tlsv1_3 example.com
 6. 커밋 & 푸시
 
 ### 커밋 메시지 형식
+
+Conventional Commits (`<type>(<scope>): <subject>`). Types: feat, fix, refactor, perf, docs, test, chore, build, ci, style, revert. 명령형, subject ≤50자 권장(최대 72자), 마침표 없음. body는 "왜"가 자명하지 않을 때만 추가. 커밋 메시지는 `caveman-commit` 스킬로 생성한다.
+
+Footer 필수:
 ```
-Add/Update/Fix 스크립트명 - 간단한 설명
-
-- 상세 변경 내용
-- ...
-
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
