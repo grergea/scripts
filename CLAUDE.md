@@ -53,7 +53,6 @@ scripts-repo/
 | `pcontents/pcontents.sh` | CDN | 병렬 CDN 노드 콘텐츠 일관성 검증 | curl, parallel |
 | `cache-consistency/cache_consistency.py` | CDN | S3 오리진↔CDN 엣지 캐시 정합성 검증 | Python, boto3 |
 | `sslyze-map/sslyze-map.sh` | CDN | sslyze 결과를 IANA / OpenSSL 표기로 골라서 출력 | sslyze, jq |
-| `cert-check/cert-check.sh` | CDN | 지정 IP로 고정 접속해 서버 인증서와 로컬 cert.pem fingerprint 비교 | openssl, bash 4+ |
 | `globalping/globalping_ping.py` | Network | Globalping API로 특정 국가 프로브에서 ping 측정 | Python, requests |
 
 ## 실행 예시 (Quick Reference)
