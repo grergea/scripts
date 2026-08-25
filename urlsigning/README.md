@@ -17,9 +17,8 @@ CDN URL 서명을 생성하는 Python 스크립트입니다. 다양한 CDN 벤�
 ## Installation
 
 ```bash
-# 저장소 클론
-git clone https://github.com/grergea/scripts.git
-cd scripts/urlsigning
+# urlsigning.py만 다운로드
+curl -O https://raw.githubusercontent.com/grergea/scripts/master/urlsigning/urlsigning.py
 
 # 실행 권한 부여
 chmod +x urlsigning.py
