@@ -53,6 +53,7 @@ python urlsigning.py -m <mode> -r <host> -p <path> -k <key> [options]
 | `--hash` | `md5` | 해시 알고리즘 (md5/sha256) |
 | `--uid` | - | 커스텀 UID (Mode E) |
 | `--uid-type` | `mac` | UID 생성 방식 (mac/random/zero/hostname) |
+| `--sign-order` | `pkt` | Mode A/B/C/D/UTV의 signing string 순서 (k/p/t 조합, 예: kpt) |
 | `-v, --verbose` | - | 디버그 출력 활성화 |
 
 ### UTV Mode Options
@@ -94,12 +95,12 @@ python urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mysecretkey -v
 
 | Mode | URL Format | Signing String |
 |------|------------|----------------|
-| A | `/{time}/{hash}{path}` | `{path}{key}{time}` |
-| B | `/{hash}/{time}{path}` | `{path}{key}{time}` |
-| C | `{path}?key={hash}&time={time}` | `{path}{key}{time}` |
-| D | `{path}?time={time}&key={hash}` | `{path}{key}{time}` |
-| E | `{path}?auth_key={time}-{rand}-{uid}-{hash}` | `{path}-{time}-{rand}-{uid}-{key}` |
-| UTV | `{path}?{time_param}={time}&{hash_param}={hash}` | `{key}{path}{time}` |
+| A | `/{time}/{hash}{path}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
+| B | `/{hash}/{time}{path}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
+| C | `{path}?key={hash}&time={time}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
+| D | `{path}?time={time}&key={hash}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
+| E | `{path}?auth_key={time}-{rand}-{uid}-{hash}` | `{path}-{time}-{rand}-{uid}-{key}` (고정) |
+| UTV | `{path}?{time_param}={time}&{hash_param}={hash}` | `--sign-order` 지정 (기본 `pkt`, 시각은 `--utv-time-offset` 반영된 adjusted time) |
 
 ## UID Types (Mode E)
 
@@ -130,6 +131,11 @@ python urlsigning.py -m E -r cdn.example.com -p /video.mp4 -k mykey --uid "TV-SE
 | Custom CDN | E, UTV |
 
 ## Changelog
+
+### v1.1.0 (2026-08-25)
+
+- UTV 모드에 `--sign-order` 적용 (기존엔 `{key}{path}{time}` 고정이었음)
+- `--sign-order` 옵션을 A/B/C/D/UTV 전체 모드에 대해 문서화
 
 ### v1.0.0 (2026-01-08)
 
