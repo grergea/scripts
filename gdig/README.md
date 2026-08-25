@@ -14,12 +14,14 @@
 
 ## Requirements
 
+이 스크립트는 zsh 전용입니다(`#!/usr/bin/env zsh`).
+
 ```bash
-# macOS
+# macOS (zsh 기본 탑재)
 brew install curl jq bind
 
-# Ubuntu/Debian
-sudo apt install curl jq dnsutils
+# Ubuntu/Debian (zsh 기본 미탑재, 별도 설치 필요)
+sudo apt install curl jq dnsutils zsh
 ```
 
 > **Note**: `xargs`, `fold`는 대부분의 시스템에 기본 포함되어 있습니다.

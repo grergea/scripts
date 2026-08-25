@@ -6,11 +6,12 @@
 
 | Script | Category | Description | Version |
 |--------|----------|-------------|---------|
-| [gdig](./gdig/) | `DNS` | 전 세계 DNS 서버에서 도메인 레코드 조회 | v1.0.0 |
-| [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.0.0 |
+| [gdig](./gdig/) | `DNS` | 전 세계 DNS 서버에서 도메인 레코드 조회 | v1.2.0 |
+| [urlsigning](./urlsigning/) | `CDN` | CDN URL 서명 생성 (A~E, UTV 모드) | v1.1.0 |
 | [pcontents](./pcontents/) | `CDN` | 병렬 CDN 노드 콘텐츠 일관성 검증 | v1.0.0 |
 | [cache-consistency](./cache-consistency/) | `CDN` | S3 오리진과 CDN 엣지 캐시 간 객체 정합성 검증 | - |
 | [sslyze-map](./sslyze-map/) | `CDN` | sslyze 결과를 IANA / OpenSSL 표기로 골라서 출력 | v1.0.0 |
+| [globalping](./globalping/) | `Network` | Globalping API로 특정 국가 프로브에서 ping 측정 | - |
 
 ## Quick Start
 
@@ -23,6 +24,7 @@ cd scripts
 ./gdig/gdig.sh a example.com
 python ./urlsigning/urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mykey
 ./pcontents/pcontents.sh -o https://www.example.com/image.jpg
+python ./globalping/globalping_ping.py example.com --country KR
 ```
 
 ## gdig - Global DNS Checker
@@ -72,9 +74,23 @@ python ./urlsigning/urlsigning.py -m UTV -r cdn.example.com -p /video.mp4 -k myk
 ./pcontents/pcontents.sh -H "Host: assets.example.com" -P 5 -l "1.1.1.1" https://www.example.com/
 ```
 
-**의존성:** `curl`, `parallel`, `md5sum`, `column`
+**의존성:** `curl`, `parallel`, `md5sum`, `column`, `awk`
 
 → [상세 문서](./pcontents/README.md)
+
+## globalping - Globalping Ping Test
+
+Globalping API로 특정 국가/도시의 프로브에서 ping을 실행합니다.
+
+```bash
+python ./globalping/globalping_ping.py <target> [--country CODE] [--city NAME] [--probes N] [--token TOKEN]
+
+# 예시
+python ./globalping/globalping_ping.py example.com --country KR
+python ./globalping/globalping_ping.py example.com --country US --city "New York" --probes 5
+```
+
+**의존성:** Python 3, `requests`
 
 ## License
 
