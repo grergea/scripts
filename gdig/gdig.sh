@@ -44,7 +44,7 @@ function dns_worker() {
   local server_info="[${country}] ${location}"
   local url="https://www.whatsmydns.net/api/details?server=$id&type=$type&query=$domain"
 
-  local result responses plain reason attempt
+  local result responses ttl reason attempt
 
   # When the upstream lookup fails, the API answers 200 with `response` as a
   # string ("DNS query timed out", ...) instead of an array, so `--retry` never
@@ -58,23 +58,18 @@ function dns_worker() {
       continue
     fi
 
-    # Keep internal data comma-separated. `plain` (no TTL) feeds unique-IP
-    # dedup; `responses` re-derives the same values from the raw `answers`
-    # records so the display can carry each value's TTL.
-    plain=$(echo "$result" | jq -r '.data[].response | if type == "array" then .[] else empty end' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-    plain=$(echo "$plain" | sed 's/, /,/g')
-
-    responses=$(echo "$result" | jq -r --arg t "$type" '
-        .data[].answers[]? as $a
-        | ($a | split(" ")) as $f
-        | select($f[3] == $t)
-        | ($f[4:] | join(" ")) as $val
-        | "\($val)(\($f[1]))"
-      ' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    # Keep internal data comma-separated
+    responses=$(echo "$result" | jq -r '.data[].response | if type == "array" then .[] else empty end' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
     responses=$(echo "$responses" | sed 's/, /,/g')
-    [[ -z "$responses" ]] && responses="$plain"
 
-    [[ -n "$plain" ]] && break
+    # `response` has no TTL, so pull it from the raw `answers` record
+    # strings ("name TTL IN TYPE data") instead. TTL is uniform across one
+    # RRset, so the first record matching the queried type is enough.
+    ttl=$(echo "$result" | jq -r --arg t "$type" '
+        [.data[].answers[]? | select((split(" ")[3]) == $t) | split(" ")[1]] | first // empty
+      ' 2>/dev/null)
+
+    [[ -n "$responses" ]] && break
 
     # A transient upstream failure comes back as a string ("DNS query timed
     # out"), which is worth retrying. An empty array is a definitive negative
@@ -87,11 +82,11 @@ function dns_worker() {
   done
 
   if [[ -n "$responses" ]]; then
-    echo "OK|${server_info}|${provider}|${responses}|${plain}"
+    echo "OK|${server_info}|${provider}|${ttl}|${responses}"
   elif [[ -n "$reason" ]]; then
-    echo "EMPTY|${server_info}|${provider}|${reason}"
+    echo "EMPTY|${server_info}|${provider}||${reason}"
   else
-    echo "ERROR|${server_info}|${provider}|Request failed"
+    echo "ERROR|${server_info}|${provider}||Request failed"
   fi
 }
 
@@ -147,11 +142,13 @@ TERM_WIDTH=$(get_term_width)
 [ "$TERM_WIDTH" -lt 100 ] && TERM_WIDTH=100
 
 # Calculate Column Widths
-COL_SERVER=$(( (TERM_WIDTH - 4) * 25 / 100 ))
-COL_PROVIDER=$(( (TERM_WIDTH - 4) * 15 / 100 ))
-COL_RESPONSE=$(( TERM_WIDTH - COL_SERVER - COL_PROVIDER - 4 ))
+COL_TTL=8
+COL_SERVER=$(( (TERM_WIDTH - 5 - COL_TTL) * 25 / 100 ))
+COL_PROVIDER=$(( (TERM_WIDTH - 5 - COL_TTL) * 15 / 100 ))
+COL_RESPONSE=$(( TERM_WIDTH - COL_SERVER - COL_PROVIDER - COL_TTL - 5 ))
 
 # Safety Minimums
+[ $COL_TTL -lt 6 ] && COL_TTL=6
 [ $COL_SERVER -lt 20 ] && COL_SERVER=20
 [ $COL_PROVIDER -lt 12 ] && COL_PROVIDER=12
 [ $COL_RESPONSE -lt 40 ] && COL_RESPONSE=40
@@ -159,18 +156,19 @@ COL_RESPONSE=$(( TERM_WIDTH - COL_SERVER - COL_PROVIDER - 4 ))
 # --- Helper Functions for Drawing ---
 
 function draw_separator() {
-  local s_line p_line r_line
+  local s_line p_line t_line r_line
   printf -v s_line '%*s' "$COL_SERVER" ''; s_line=${s_line// /-}
   printf -v p_line '%*s' "$COL_PROVIDER" ''; p_line=${p_line// /-}
+  printf -v t_line '%*s' "$COL_TTL" ''; t_line=${t_line// /-}
   printf -v r_line '%*s' "$COL_RESPONSE" ''; r_line=${r_line// /-}
-  
-  printf "+%s+%s+%s+\n" "$s_line" "$p_line" "$r_line"
+
+  printf "+%s+%s+%s+%s+\n" "$s_line" "$p_line" "$t_line" "$r_line"
 }
 
 function draw_header() {
   draw_separator
-  printf "| ${BOLD}%-$(($COL_SERVER - 1))s${NC}| ${BOLD}%-$(($COL_PROVIDER - 1))s${NC}| ${BOLD}%-$(($COL_RESPONSE - 1))s${NC}|\n" \
-    "DNS Server" "Provider" "Response"
+  printf "| ${BOLD}%-$(($COL_SERVER - 1))s${NC}| ${BOLD}%-$(($COL_PROVIDER - 1))s${NC}| ${BOLD}%-$(($COL_TTL - 1))s${NC}| ${BOLD}%-$(($COL_RESPONSE - 1))s${NC}|\n" \
+    "DNS Server" "Provider" "TTL(s)" "Response"
   draw_separator
 }
 
@@ -227,13 +225,15 @@ function wrap_response_to_array() {
 function draw_row() {
   local server="$1"
   local provider="$2"
-  local response="$3"
-  local color="${4:-$NC}"
-  
-  local -a s_lines p_lines r_lines
+  local ttl="$3"
+  local response="$4"
+  local color="${5:-$NC}"
+
+  local -a s_lines p_lines t_lines r_lines
 
   s_lines=("${(@f)$(wrap_text_to_array "$server" $((COL_SERVER - 1)))}")
   p_lines=("${(@f)$(wrap_text_to_array "$provider" $((COL_PROVIDER - 1)))}")
+  t_lines=("${(@f)$(wrap_text_to_array "$ttl" $((COL_TTL - 1)))}")
   r_lines=("${(@f)$(wrap_response_to_array "$response" $((COL_RESPONSE - 1)))}")
 
   local max_h=${#s_lines[@]}
@@ -243,10 +243,11 @@ function draw_row() {
   for ((i=0; i<max_h; i++)); do
     local s_str="${s_lines[$i]:-}"
     local p_str="${p_lines[$i]:-}"
+    local t_str="${t_lines[$i]:-}"
     local r_str="${r_lines[$i]:-}"
-    
-	printf "| %-$(($COL_SERVER - 1))s| %-$(($COL_PROVIDER - 1))s| ${color}%-$(($COL_RESPONSE - 1))s${NC}|\n" \
-        "$s_str" "$p_str" "$r_str"
+
+	printf "| %-$(($COL_SERVER - 1))s| %-$(($COL_PROVIDER - 1))s| %-$(($COL_TTL - 1))s| ${color}%-$(($COL_RESPONSE - 1))s${NC}|\n" \
+        "$s_str" "$p_str" "$t_str" "$r_str"
   done
   draw_separator
 }
@@ -258,24 +259,22 @@ function local_lookup() {
   local type=$3
   local domain=$4
 
-  local dig_raw dig_out dig_plain
+  local dig_raw dig_out dig_ttl
   dig_raw=$(dig +noall +answer +time=2 +tries=1 @"$server_ip" "$type" "$domain" 2>/dev/null)
 
-  # dig_out carries the TTL for display; dig_plain (no TTL) feeds ALL_ANSWERS
-  # so unique-IP dedup is unaffected by per-resolver TTL differences.
   dig_out=$(echo "$dig_raw" | awk -v t="$type" '$4 == t {
-      out=""; for(i=5;i<=NF;i++) out=out$i" "; sub(/ $/, "", out); print out"("$2")"
-    }' | tr '\n' ',' | sed 's/,$//')
-  dig_plain=$(echo "$dig_raw" | awk -v t="$type" '$4 == t {
       out=""; for(i=5;i<=NF;i++) out=out$i" "; sub(/ $/, "", out); print out
     }' | tr '\n' ',' | sed 's/,$//')
+  # TTL is uniform across one RRset, so the first matching record's value
+  # represents the whole answer.
+  dig_ttl=$(echo "$dig_raw" | awk -v t="$type" '$4 == t { print $2; exit }')
 
   if [ -n "$dig_out" ]; then
-    draw_row "$server_ip" "$provider_name" "$dig_out" "$GREEN"
+    draw_row "$server_ip" "$provider_name" "$dig_ttl" "$dig_out" "$GREEN"
     ((SUCCESS_COUNT++))
-    ALL_ANSWERS+=(${(s:,:)dig_plain})
+    ALL_ANSWERS+=(${(s:,:)dig_out})
   else
-    draw_row "$server_ip" "$provider_name" "No response" "$YELLOW"
+    draw_row "$server_ip" "$provider_name" "" "No response" "$YELLOW"
   fi
   ((TOTAL_COUNT++))
 }
@@ -403,24 +402,24 @@ SUCCESS_COUNT=0
 draw_header
 
 if [ -f "$RESULT_FILE" ]; then
-  while IFS='|' read -r result_status server provider response plain; do
+  while IFS='|' read -r result_status server provider ttl response; do
     ((TOTAL_COUNT++))
     case "$result_status" in
       OK)
         ((SUCCESS_COUNT++))
-        draw_row "$server" "$provider" "$response" "$GREEN"
-        ALL_ANSWERS+=(${(s:,:)plain})
+        draw_row "$server" "$provider" "$ttl" "$response" "$GREEN"
+        ALL_ANSWERS+=(${(s:,:)response})
         ;;
-      EMPTY) draw_row "$server" "$provider" "$response" "$YELLOW" ;;
-      ERROR) draw_row "$server" "$provider" "$response" "$RED" ;;
+      EMPTY) draw_row "$server" "$provider" "$ttl" "$response" "$YELLOW" ;;
+      ERROR) draw_row "$server" "$provider" "$ttl" "$response" "$RED" ;;
     esac
   done < <(sort -t'|' -k1,1r -k2 "$RESULT_FILE")
 fi
 
 if [[ "${COUNTRY}" == "KR" ]] || [[ -z "$COUNTRY" ]]; then
     MY_IP=$(curl -s --max-time 2 https://api.myip.com | jq -r '"\(.ip) (\(.country))"' 2>/dev/null)
-    
-    printf "| ${CYAN}%-$((COL_SERVER + COL_PROVIDER + COL_RESPONSE))s${NC}|\n" " Local Lookup (Client: ${MY_IP:-Unknown})"
+
+    printf "| ${CYAN}%-$((COL_SERVER + COL_PROVIDER + COL_TTL + COL_RESPONSE))s${NC}|\n" " Local Lookup (Client: ${MY_IP:-Unknown})"
     draw_separator
 
     LOCAL_SERVERS=(
