@@ -44,7 +44,7 @@ function dns_worker() {
   local server_info="[${country}] ${location}"
   local url="https://www.whatsmydns.net/api/details?server=$id&type=$type&query=$domain"
 
-  local result responses reason attempt
+  local result responses plain reason attempt
 
   # When the upstream lookup fails, the API answers 200 with `response` as a
   # string ("DNS query timed out", ...) instead of an array, so `--retry` never
@@ -58,10 +58,23 @@ function dns_worker() {
       continue
     fi
 
-    # Keep internal data comma-separated
-    responses=$(echo "$result" | jq -r '.data[].response | if type == "array" then .[] else empty end' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    # Keep internal data comma-separated. `plain` (no TTL) feeds unique-IP
+    # dedup; `responses` re-derives the same values from the raw `answers`
+    # records so the display can carry each value's TTL.
+    plain=$(echo "$result" | jq -r '.data[].response | if type == "array" then .[] else empty end' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    plain=$(echo "$plain" | sed 's/, /,/g')
+
+    responses=$(echo "$result" | jq -r --arg t "$type" '
+        .data[].answers[]? as $a
+        | ($a | split(" ")) as $f
+        | select($f[3] == $t)
+        | ($f[4:] | join(" ")) as $val
+        | "\($val)(\($f[1]))"
+      ' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
     responses=$(echo "$responses" | sed 's/, /,/g')
-    [[ -n "$responses" ]] && break
+    [[ -z "$responses" ]] && responses="$plain"
+
+    [[ -n "$plain" ]] && break
 
     # A transient upstream failure comes back as a string ("DNS query timed
     # out"), which is worth retrying. An empty array is a definitive negative
@@ -74,7 +87,7 @@ function dns_worker() {
   done
 
   if [[ -n "$responses" ]]; then
-    echo "OK|${server_info}|${provider}|${responses}"
+    echo "OK|${server_info}|${provider}|${responses}|${plain}"
   elif [[ -n "$reason" ]]; then
     echo "EMPTY|${server_info}|${provider}|${reason}"
   else
@@ -245,16 +258,22 @@ function local_lookup() {
   local type=$3
   local domain=$4
 
-  local dig_out
-  dig_out=$(dig +noall +answer +time=2 +tries=1 @"$server_ip" "$type" "$domain" 2>/dev/null | \
-    awk -v t="$type" '$4 == t {
+  local dig_raw dig_out dig_plain
+  dig_raw=$(dig +noall +answer +time=2 +tries=1 @"$server_ip" "$type" "$domain" 2>/dev/null)
+
+  # dig_out carries the TTL for display; dig_plain (no TTL) feeds ALL_ANSWERS
+  # so unique-IP dedup is unaffected by per-resolver TTL differences.
+  dig_out=$(echo "$dig_raw" | awk -v t="$type" '$4 == t {
+      out=""; for(i=5;i<=NF;i++) out=out$i" "; sub(/ $/, "", out); print out"("$2")"
+    }' | tr '\n' ',' | sed 's/,$//')
+  dig_plain=$(echo "$dig_raw" | awk -v t="$type" '$4 == t {
       out=""; for(i=5;i<=NF;i++) out=out$i" "; sub(/ $/, "", out); print out
     }' | tr '\n' ',' | sed 's/,$//')
 
   if [ -n "$dig_out" ]; then
     draw_row "$server_ip" "$provider_name" "$dig_out" "$GREEN"
     ((SUCCESS_COUNT++))
-    ALL_ANSWERS+=(${(s:,:)dig_out})
+    ALL_ANSWERS+=(${(s:,:)dig_plain})
   else
     draw_row "$server_ip" "$provider_name" "No response" "$YELLOW"
   fi
@@ -384,13 +403,13 @@ SUCCESS_COUNT=0
 draw_header
 
 if [ -f "$RESULT_FILE" ]; then
-  while IFS='|' read -r result_status server provider response; do
+  while IFS='|' read -r result_status server provider response plain; do
     ((TOTAL_COUNT++))
     case "$result_status" in
       OK)
         ((SUCCESS_COUNT++))
         draw_row "$server" "$provider" "$response" "$GREEN"
-        ALL_ANSWERS+=(${(s:,:)response})
+        ALL_ANSWERS+=(${(s:,:)plain})
         ;;
       EMPTY) draw_row "$server" "$provider" "$response" "$YELLOW" ;;
       ERROR) draw_row "$server" "$provider" "$response" "$RED" ;;
