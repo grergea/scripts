@@ -445,7 +445,7 @@ echo -e "${BOLD}Summary:${NC} $TOTAL_COUNT queried | $SUCCESS_COUNT success | ${
 if [ "$UNIQ_MODE" -eq 1 ] && [ ${#UNIQUE_IPS[@]} -gt 0 ]; then
   echo ""
   echo -e "${BOLD}Unique IPs (${#UNIQUE_IPS[@]}):${NC}"
-  printf '%s\n' "${UNIQUE_IPS[@]}" | sort -V
+  printf '%s\n' "${UNIQUE_IPS[@]}" | sort -V | paste -sd' ' -
 fi
 
 echo ""
