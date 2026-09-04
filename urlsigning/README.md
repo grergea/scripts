@@ -55,13 +55,13 @@ python urlsigning.py -m <mode> -r <host> -p <path> -k <key> [options]
 | `--sign-order` | `pkt` | Mode A/B/C/D/UTV의 signing string 순서 (k/p/t 조합, 예: kpt) |
 | `-v, --verbose` | - | 디버그 출력 활성화 |
 
-### UTV Mode Options
+### Time/Param Options (Mode C/D/UTV)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--utv-time-offset` | `3600` | 만료 시간 오프셋 (초) |
-| `--utv-time-param` | `px-time` | 시간 파라미터명 |
-| `--utv-hash-param` | `px-hash` | 해시 파라미터명 |
+| `--time-offset` | `3600` | 만료 시간 오프셋 (초). Mode C/D/UTV에 적용, `0`으로 끌 수 있음 |
+| `--time-param` | `px-time` | 시간 파라미터명 (UTV 모드 전용) |
+| `--hash-param` | `px-hash` | 해시 파라미터명 (UTV 모드 전용) |
 
 ## Examples
 
@@ -94,12 +94,12 @@ python urlsigning.py -m A -r cdn.example.com -p /video.mp4 -k mysecretkey -v
 
 | Mode | URL Format | Signing String |
 |------|------------|----------------|
-| A | `/{time}/{hash}{path}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
-| B | `/{hash}/{time}{path}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
-| C | `{path}?key={hash}&time={time}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
-| D | `{path}?time={time}&key={hash}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`) |
+| A | `/{time}/{hash}{path}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`), offset 미반영 |
+| B | `/{hash}/{time}{path}` | `--sign-order` 지정 (기본 `pkt` = `{path}{key}{time}`), offset 미반영 |
+| C | `{path}?key={hash}&time={time}` | `--sign-order` 지정 (기본 `pkt`, 시각은 `--time-offset` 반영된 adjusted time) |
+| D | `{path}?time={time}&key={hash}` | `--sign-order` 지정 (기본 `pkt`, 시각은 `--time-offset` 반영된 adjusted time) |
 | E | `{path}?auth_key={time}-{rand}-{uid}-{hash}` | `{path}-{time}-{rand}-{uid}-{key}` (고정) |
-| UTV | `{path}?{time_param}={time}&{hash_param}={hash}` | `--sign-order` 지정 (기본 `pkt`, 시각은 `--utv-time-offset` 반영된 adjusted time) |
+| UTV | `{path}?{time_param}={time}&{hash_param}={hash}` | `--sign-order` 지정 (기본 `pkt`, 시각은 `--time-offset` 반영된 adjusted time) |
 
 ## UID Types (Mode E)
 

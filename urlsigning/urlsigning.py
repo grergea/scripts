@@ -97,6 +97,15 @@ def build_sign_string(path, key, time_str, sign_order):
     return "".join(tokens[c] for c in sign_order)
 
 
+def apply_time_offset(time_str, offset, hex_time):
+    """time_str에 offset(초)을 더한 문자열을 반환. offset이 0이면 그대로 반환."""
+    if offset == 0:
+        return time_str
+    if hex_time:
+        return hex(int(time_str, 16) + offset)[2:]
+    return str(int(time_str) + offset)
+
+
 def generate_signed_url(
     mode,
     scheme,
@@ -106,9 +115,9 @@ def generate_signed_url(
     start_time,
     hex_time=False,
     hash_type="md5",
-    utv_time_offset=3600,
-    utv_time_param="px-time",
-    utv_hash_param="px-hash",
+    time_offset=3600,
+    time_param="px-time",
+    hash_param="px-hash",
     uid=None,
     uid_type="mac",
     sign_order="path-key-time",
@@ -143,16 +152,32 @@ def generate_signed_url(
         )
         return f"{scheme}://{host}/{signed_key}/{time_str}{path}"
     elif mode == "C":
+        adjusted_time = apply_time_offset(time_str, time_offset, hex_time)
+        if verbose and time_offset:
+            print(
+                f"[DEBUG] Mode C: original time {time_str} -> adjusted time {adjusted_time} (+{time_offset} seconds)"
+            )
         signed_key = generate_signature(
-            build_sign_string(path, key, time_str, sign_order), hash_type, key, verbose
+            build_sign_string(path, key, adjusted_time, sign_order),
+            hash_type,
+            key,
+            verbose,
         )
-        params = urlencode({"key": signed_key, "time": time_str})
+        params = urlencode({"key": signed_key, "time": adjusted_time})
         return f"{scheme}://{host}{path}?{params}"
     elif mode == "D":
+        adjusted_time = apply_time_offset(time_str, time_offset, hex_time)
+        if verbose and time_offset:
+            print(
+                f"[DEBUG] Mode D: original time {time_str} -> adjusted time {adjusted_time} (+{time_offset} seconds)"
+            )
         signed_key = generate_signature(
-            build_sign_string(path, key, time_str, sign_order), hash_type, key, verbose
+            build_sign_string(path, key, adjusted_time, sign_order),
+            hash_type,
+            key,
+            verbose,
         )
-        params = urlencode({"time": time_str, "key": signed_key})
+        params = urlencode({"time": adjusted_time, "key": signed_key})
         return f"{scheme}://{host}{path}?{params}"
     elif mode == "E":
         rand = "".join(
@@ -164,106 +189,150 @@ def generate_signed_url(
         params = urlencode({"auth_key": f"{time_str}-{rand}-{user_uid}-{signed_key}"})
         return f"{scheme}://{host}{path}?{params}"
     elif mode == "UTV":
-        if hex_time:
-            utv_time = hex(int(time_str, 16) + utv_time_offset)[2:]
-        else:
-            utv_time = str(int(time_str) + utv_time_offset)
+        utv_time = apply_time_offset(time_str, time_offset, hex_time)
         if verbose:
             print(
-                f"[DEBUG] UTV mode: original time {time_str} -> adjusted time {utv_time} (+{utv_time_offset} seconds)"
+                f"[DEBUG] UTV mode: original time {time_str} -> adjusted time {utv_time} (+{time_offset} seconds)"
             )
             print(
-                f"[DEBUG] UTV parameters: time_param='{utv_time_param}', hash_param='{utv_hash_param}'"
+                f"[DEBUG] UTV parameters: time_param='{time_param}', hash_param='{hash_param}'"
             )
         signed_key = generate_signature(
             build_sign_string(path, key, utv_time, sign_order), hash_type, key, verbose
         )
-        params = urlencode({utv_time_param: utv_time, utv_hash_param: signed_key})
+        params = urlencode({time_param: utv_time, hash_param: signed_key})
         return f"{scheme}://{host}{path}?{params}"
     else:
         raise ValueError("Invalid mode selected. Choose A, B, C, D, E, or UTV.")
 
 
+MODE_TABLE = """\
+Modes:
+  A    /{time}/{hash}{path}
+  B    /{hash}/{time}{path}
+  C    {path}?key={hash}&time={time}                 (time offset applied)
+  D    {path}?time={time}&key={hash}                 (time offset applied)
+  E    {path}?auth_key={time}-{rand}-{uid}-{hash}     (fixed format)
+  UTV  {path}?px-time={time}&px-hash={hash}           (time offset applied, param names configurable)
+
+Examples:
+  URLSigning.py -u https://cdn.example.com/video.mp4 -m C -k mysecretkey
+  URLSigning.py -u https://cdn.example.com/video.mp4 -m UTV -k mysecretkey --sign-order kpt -v
+  URLSigning.py -u https://cdn.example.com/video.mp4 -m C -k mysecretkey --time-offset 0
+
+Full docs: https://github.com/grergea/scripts/tree/master/urlsigning
+"""
+
+
+class WideHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    def __init__(self, prog):
+        super().__init__(prog, max_help_position=32, width=100)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate signed URL using MD5 or SHA256"
+        prog="URLSigning.py",
+        description="Generate a CDN signed URL using MD5 or SHA256.",
+        epilog=MODE_TABLE,
+        formatter_class=WideHelpFormatter,
     )
-    parser.add_argument(
+
+    required = parser.add_argument_group("required")
+    required.add_argument(
         "-m",
         "--mode",
         choices=["A", "B", "C", "D", "E", "UTV"],
+        metavar="MODE",
         required=True,
-        help="Signing mode (A, B, C, D, E, UTV)",
+        help="signing mode: A, B, C, D, E, UTV (see Modes below)",
     )
-    parser.add_argument(
-        "-s",
-        "--scheme",
-        choices=["http", "https"],
-        default="https",
-        help="Scheme (http or https)",
-    )
-    parser.add_argument(
+    required.add_argument("-k", "--key", required=True, help="URL signing key")
+
+    url_group = parser.add_argument_group("URL")
+    url_group.add_argument(
         "-u",
         "--url",
         default=None,
-        help="Full URL to sign (parses scheme/host/path; overrides -s/-r/-p)",
+        help="full URL to sign (parses scheme/host/path; overrides -s/-r/-p)",
     )
-    parser.add_argument("-r", "--host", default=None, help="Resource hostname")
-    parser.add_argument("-p", "--path", default=None, help="File path of resource")
-    parser.add_argument("-k", "--key", required=True, help="URL signing key")
-    parser.add_argument(
+    url_group.add_argument(
+        "-s",
+        "--scheme",
+        choices=["http", "https"],
+        metavar="SCHEME",
+        default="https",
+        help="http or https (default: https)",
+    )
+    url_group.add_argument("-r", "--host", default=None, help="resource hostname")
+    url_group.add_argument("-p", "--path", default=None, help="file path of resource")
+
+    time_group = parser.add_argument_group("time & hash")
+    time_group.add_argument(
         "-t",
         "--start_time",
         type=int,
         default=int(time.time()),
-        help="Starting time of the URL (Unix timestamp)",
+        help="starting time of the URL (Unix timestamp, default: now)",
     )
-    parser.add_argument(
+    time_group.add_argument(
         "--hex-time",
         action="store_true",
-        help="Convert start_time to hexadecimal format",
+        help="convert start_time to hexadecimal format",
     )
-    parser.add_argument(
+    time_group.add_argument(
         "--hash",
         choices=["md5", "sha256"],
+        metavar="ALGO",
         default="md5",
-        help="Hash algorithm (md5 or sha256)",
+        help="md5 or sha256 (default: md5)",
     )
-    parser.add_argument(
-        "--utv-time-offset",
-        type=int,
-        default=3600,
-        help="Time offset in seconds to add for UTV mode (default: 3600)",
-    )
-    parser.add_argument(
-        "--utv-time-param",
-        default="px-time",
-        help="Parameter name for time in UTV mode (default: px-time)",
-    )
-    parser.add_argument(
-        "--utv-hash-param",
-        default="px-hash",
-        help="Parameter name for hash in UTV mode (default: px-hash)",
-    )
-    parser.add_argument(
-        "--uid", default=None, help="Custom UID for mode E (overrides --uid-type)"
-    )
-    parser.add_argument(
-        "--uid-type",
-        choices=["mac", "random", "zero", "hostname"],
-        default="mac",
-        help="UID generation method for mode E (default: mac)",
-    )
-    parser.add_argument(
+    time_group.add_argument(
         "--sign-order",
         default="pkt",
-        help="Signing string order for modes A/B/C/D/UTV using k(ey), p(ath), t(ime) tokens (default: pkt = path+key+time, e.g. kpt = key+path+time)",
+        metavar="ORDER",
+        help="signing string token order for modes A/B/C/D/UTV: k(ey), p(ath), t(ime) "
+        "(default: pkt = path+key+time, e.g. kpt = key+path+time)",
     )
-    parser.add_argument(
+
+    offset_group = parser.add_argument_group("time offset & UTV params (modes C/D/UTV)")
+    offset_group.add_argument(
+        "--time-offset",
+        type=int,
+        default=3600,
+        metavar="SECONDS",
+        help="offset in seconds added before signing, for modes C, D, UTV (default: 3600, 0 to disable)",
+    )
+    offset_group.add_argument(
+        "--time-param",
+        default="px-time",
+        metavar="NAME",
+        help="time parameter name for UTV mode (default: px-time)",
+    )
+    offset_group.add_argument(
+        "--hash-param",
+        default="px-hash",
+        metavar="NAME",
+        help="hash parameter name for UTV mode (default: px-hash)",
+    )
+
+    mode_e_group = parser.add_argument_group("mode E")
+    mode_e_group.add_argument(
+        "--uid", default=None, help="custom UID (overrides --uid-type)"
+    )
+    mode_e_group.add_argument(
+        "--uid-type",
+        choices=["mac", "random", "zero", "hostname"],
+        metavar="TYPE",
+        default="mac",
+        help="mac, random, zero, or hostname (default: mac)",
+    )
+
+    debug_group = parser.add_argument_group("debug")
+    debug_group.add_argument(
         "-v",
         "--verbose",
         action="store_true",
-        help="Enable debug output (keys are masked)",
+        help="enable debug output (keys are masked)",
     )
 
     args = parser.parse_args()
@@ -296,9 +365,9 @@ def main():
         args.start_time,
         args.hex_time,
         args.hash,
-        args.utv_time_offset,
-        args.utv_time_param,
-        args.utv_hash_param,
+        args.time_offset,
+        args.time_param,
+        args.hash_param,
         args.uid,
         args.uid_type,
         args.sign_order,
