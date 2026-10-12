@@ -11,6 +11,7 @@
 | [pcontents](./pcontents/) | `CDN` | 병렬 CDN 노드 콘텐츠 일관성 검증 | v1.0.0 |
 | [cache-consistency](./cache-consistency/) | `CDN` | S3 오리진과 CDN 엣지 캐시 간 객체 정합성 검증 | - |
 | [sslyze-map](./sslyze-map/) | `CDN` | sslyze 결과를 IANA / OpenSSL 표기로 골라서 출력 | v1.0.0 |
+| [ssl-pfx2pem](./ssl-pfx2pem/) | `CDN` | PFX 인증서를 PEM 인증서/개인키/체인으로 분리 | v1.0.0 |
 | [globalping](./globalping/) | `Network` | Globalping API로 특정 국가 프로브에서 ping 측정 | - |
 
 ## Quick Start

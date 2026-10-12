@@ -38,6 +38,10 @@ scripts-repo/
 │   ├── README.md
 │   └── sslyze-map.sh
 │
+├── ssl-pfx2pem/           # PFX → PEM 인증서/개인키/체인 분리
+│   ├── README.md
+│   └── ssl_pfx2pem.sh
+│
 └── vault-management/      # Obsidian 볼트 관리 유틸리티
 ```
 
@@ -53,6 +57,7 @@ scripts-repo/
 | `pcontents/pcontents.sh` | CDN | 병렬 CDN 노드 콘텐츠 일관성 검증 | curl, parallel |
 | `cache-consistency/cache_consistency.py` | CDN | S3 오리진↔CDN 엣지 캐시 정합성 검증 | Python, boto3 |
 | `sslyze-map/sslyze-map.sh` | CDN | sslyze 결과를 IANA / OpenSSL 표기로 골라서 출력 | sslyze, jq |
+| `ssl-pfx2pem/ssl_pfx2pem.sh` | CDN | PFX 인증서를 PEM 인증서/개인키/체인으로 분리 | openssl |
 | `globalping/globalping_ping.py` | Network | Globalping API로 특정 국가 프로브에서 ping 측정 | Python, requests |
 
 ## 실행 예시 (Quick Reference)
@@ -73,6 +78,9 @@ python cache-consistency/cache_consistency.py
 
 # sslyze-map: TLS 버전별 cipher를 OpenSSL 표기로 출력
 bash sslyze-map/sslyze-map.sh --mapping openssl --tlsv1_2 --tlsv1_3 example.com
+
+# ssl-pfx2pem: PFX를 PEM 인증서/개인키/체인으로 분리 (bash/zsh 모두 가능)
+bash ssl-pfx2pem/ssl_pfx2pem.sh example.com.pfx
 ```
 
 ## 연관 Obsidian 노트
