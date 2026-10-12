@@ -25,12 +25,21 @@ cert_out="${dir}/${base}_cert.pem"
 key_out="${dir}/${base}_key.pem"
 chain_out="${dir}/${base}_chain.pem"
 
-for f in "$cert_out" "$key_out" "$chain_out"; do
-    if [ -e "$f" ]; then
-        echo "이미 존재하는 파일입니다: $f (덮어쓰지 않고 중단)" >&2
-        exit 1
-    fi
-done
+# 출력 파일을 noclobber(O_EXCL)로 선점한다. 존재 확인과 쓰기 사이의 경합(TOCTOU)과
+# 심볼릭 링크 경유 쓰기를 막는다. openssl -out은 셸 리다이렉션이 아니므로 set -C가
+# 직접 적용되지 않아 빈 파일을 먼저 만들어 두는 방식을 쓴다.
+claim() {
+    (set -C; umask 077; : > "$1") 2>/dev/null
+}
+
+exists_abort() {
+    echo "이미 존재하는 파일입니다: $1 (덮어쓰지 않고 중단)" >&2
+    exit 1
+}
+
+claim "$cert_out" || exists_abort "$cert_out"
+claim "$key_out" || { rm -f "$cert_out"; exists_abort "$key_out"; }
+claim "$chain_out" || { rm -f "$cert_out" "$key_out"; exists_abort "$chain_out"; }
 
 if [ -z "${PFXPASS:-}" ]; then
     printf "PFX Import Password: " >&2
@@ -50,7 +59,7 @@ use_legacy=0
 if ! openssl pkcs12 -in "$pfx" -clcerts -nokeys -passin env:PFXPASS -out "$cert_out" 2>/dev/null; then
     use_legacy=1
     if ! openssl pkcs12 -in "$pfx" -clcerts -nokeys -legacy -passin env:PFXPASS -out "$cert_out" 2>/dev/null; then
-        rm -f "$cert_out"
+        rm -f "$cert_out" "$key_out" "$chain_out"
         echo "인증서 추출 실패 (비밀번호를 확인하세요)" >&2
         exit 1
     fi
@@ -70,6 +79,7 @@ p12_extract() {
 (umask 077; p12_extract "$key_out" -nocerts -nodes)
 p12_extract "$chain_out" -cacerts -nokeys -chain
 chmod 600 "$key_out" 2>/dev/null
+chmod 644 "$cert_out" "$chain_out" 2>/dev/null
 
 echo
 echo "=== 변환 완료 ==="
