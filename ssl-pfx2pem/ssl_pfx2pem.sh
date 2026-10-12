@@ -25,22 +25,6 @@ cert_out="${dir}/${base}_cert.pem"
 key_out="${dir}/${base}_key.pem"
 chain_out="${dir}/${base}_chain.pem"
 
-# 출력 파일을 noclobber(O_EXCL)로 선점한다. 존재 확인과 쓰기 사이의 경합(TOCTOU)과
-# 심볼릭 링크 경유 쓰기를 막는다. openssl -out은 셸 리다이렉션이 아니므로 set -C가
-# 직접 적용되지 않아 빈 파일을 먼저 만들어 두는 방식을 쓴다.
-claim() {
-    (set -C; umask 077; : > "$1") 2>/dev/null
-}
-
-exists_abort() {
-    echo "이미 존재하는 파일입니다: $1 (덮어쓰지 않고 중단)" >&2
-    exit 1
-}
-
-claim "$cert_out" || exists_abort "$cert_out"
-claim "$key_out" || { rm -f "$cert_out"; exists_abort "$key_out"; }
-claim "$chain_out" || { rm -f "$cert_out" "$key_out"; exists_abort "$chain_out"; }
-
 if [ -z "${PFXPASS:-}" ]; then
     printf "PFX Import Password: " >&2
     if [ -t 0 ]; then
@@ -54,32 +38,72 @@ if [ -z "${PFXPASS:-}" ]; then
 fi
 export PFXPASS
 
+# 비밀번호와 PFX 암호화 방식을 먼저 확인한다. 출력은 버리므로 이 단계에서는 파일이 만들어지지 않는다.
 # OpenSSL 3.x는 구형 RC2-40-CBC/3DES로 암호화된 PFX를 기본 provider로 열지 못하므로 legacy provider 병행 시도
 use_legacy=0
-if ! openssl pkcs12 -in "$pfx" -clcerts -nokeys -passin env:PFXPASS -out "$cert_out" 2>/dev/null; then
+if ! openssl pkcs12 -in "$pfx" -clcerts -nokeys -passin env:PFXPASS >/dev/null 2>&1; then
     use_legacy=1
-    if ! openssl pkcs12 -in "$pfx" -clcerts -nokeys -legacy -passin env:PFXPASS -out "$cert_out" 2>/dev/null; then
-        rm -f "$cert_out" "$key_out" "$chain_out"
+    if ! openssl pkcs12 -in "$pfx" -clcerts -nokeys -legacy -passin env:PFXPASS >/dev/null 2>&1; then
         echo "인증서 추출 실패 (비밀번호를 확인하세요)" >&2
         exit 1
     fi
 fi
 
-# $1: 출력 파일, 나머지: openssl 추가 옵션. use_legacy=1이면 -legacy를 붙인다.
-p12_extract() {
+# openssl 출력을 -out 경로 대신 셸이 noclobber(O_EXCL)로 연 파일 디스크립터로 받는다.
+# 존재 확인과 쓰기 사이의 경합(TOCTOU)과, 열린 뒤 경로가 심볼릭 링크로 바뀌는 경우를 모두 막는다.
+# $1: 출력 파일, $2: umask, 나머지: openssl 추가 옵션
+# 종료 코드: 0 성공, 90 이미 존재(또는 열기 실패), 91 openssl 실패
+extract_excl() {
     out="$1"
-    shift
-    if [ "$use_legacy" = 1 ]; then
-        openssl pkcs12 -in "$pfx" "$@" -legacy -passin env:PFXPASS -out "$out" 2>/dev/null
-    else
-        openssl pkcs12 -in "$pfx" "$@" -passin env:PFXPASS -out "$out" 2>/dev/null
-    fi
+    mask="$2"
+    shift 2
+    (
+        set -C
+        umask "$mask"
+        exec 2>/dev/null >"$out" || exit 90
+        if [ "$use_legacy" = 1 ]; then
+            openssl pkcs12 -in "$pfx" "$@" -legacy -passin env:PFXPASS || exit 91
+        else
+            openssl pkcs12 -in "$pfx" "$@" -passin env:PFXPASS || exit 91
+        fi
+    ) 2>/dev/null
 }
 
-(umask 077; p12_extract "$key_out" -nocerts -nodes)
-p12_extract "$chain_out" -cacerts -nokeys -chain
-chmod 600 "$key_out" 2>/dev/null
-chmod 644 "$cert_out" "$chain_out" 2>/dev/null
+exists_abort() {
+    echo "이미 존재하는 파일입니다: $1 (덮어쓰지 않고 중단)" >&2
+    exit 1
+}
+
+# 셸에 따라 exec 리다이렉션 실패가 서브셸을 종료 코드 1로 끝내므로 1도 "이미 존재"로 취급한다.
+extract_excl "$cert_out" 022 -clcerts -nokeys
+rc=$?
+if [ "$rc" = 91 ]; then
+    rm -f "$cert_out"
+    echo "인증서 추출 실패 (비밀번호를 확인하세요)" >&2
+    exit 1
+elif [ "$rc" != 0 ]; then
+    exists_abort "$cert_out"
+fi
+
+extract_excl "$key_out" 077 -nocerts -nodes
+rc=$?
+if [ "$rc" = 91 ]; then
+    rm -f "$cert_out" "$key_out"
+    echo "개인키 추출 실패" >&2
+    exit 1
+elif [ "$rc" != 0 ]; then
+    rm -f "$cert_out"
+    exists_abort "$key_out"
+fi
+
+extract_excl "$chain_out" 022 -cacerts -nokeys -chain
+rc=$?
+if [ "$rc" = 91 ]; then
+    rm -f "$chain_out"
+elif [ "$rc" != 0 ]; then
+    rm -f "$cert_out" "$key_out"
+    exists_abort "$chain_out"
+fi
 
 echo
 echo "=== 변환 완료 ==="
