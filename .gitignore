@@ -10,3 +10,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# 소스 사본 압축본
+urlsigning/urlsigning.py.zip
